@@ -243,6 +243,9 @@ class FFmpeg:
 
             print("[FFmpeg] [" + self.pid + "] killed")
 
+        # Remove process from memory (and don't left a ffmpeg 'zombie' process)
+        self.process = None
+
     def stop(self):
         class KillThread(Thread):
             def run(self2):
