@@ -204,7 +204,7 @@ class Spotify:
     def playbackstatus_changed(self):
         print("[Spotify] State changed: " + self.playbackstatus)
 
-        if(self.playbackstatus == "Paused"):
+        if self.playbackstatus == "Paused":
             if not is_script_paused:
                 print("You paused Spotify playback (or the playlist / album is over)")
                 doExit()
@@ -257,13 +257,9 @@ class FFmpeg:
     def killAll():
         print ("[FFmpeg] killing all instances")
 
-        # Create a copy of the instances list (I know, not the best idea, but the easiest)
-        # (because instances get removed from list when stopped, this would not run as often as needed if list gets smaller, thats why I use a copy of the list, which not gets smaller)
-
-        instcp = FFmpeg.instances.copy()
-
-        for i in instcp:
-            i.stopBlocking()
+        # Run as long as list ist not empty
+        while FFmpeg.instances:
+            FFmpeg.instances[0].stopBlocking()
 
         print ("[FFmpeg] all instances killed")
 
