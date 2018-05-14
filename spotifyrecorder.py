@@ -16,9 +16,10 @@ import traceback
 # Final variables
 
 #global debug_logging
-app_version = "0.1"
+app_version = "0.1.1"
 debug_logging = False
 output_dir = "Audio"
+output_filename_pattern = "{trackNumber} - {artist} - {title}"
 
 # Global variables
 global spotify
@@ -85,7 +86,7 @@ class Spotify:
             sys.exit(1)
             pass
 
-        self.track = str(self.metadata.get(dbus.String(u'xesam:trackNumber'))) + " - " + self.metadata.get(dbus.String(u'xesam:artist'))[0] + " - " + self.metadata.get(dbus.String(u'xesam:title'))
+        self.track = self.get_track(self.metadata)
 
         self.playbackstatus = self.iface.Get(self.mpris_player_string, "PlaybackStatus")
 
@@ -117,6 +118,9 @@ class Spotify:
 
         print("Spotify DBus listener stopped")
 
+    def get_track(self, metadata):
+        return output_filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
+
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playingUriChanged(self, Player, three, four):
         global iface
@@ -128,7 +132,7 @@ class Spotify:
 
         # Update track
 
-        self.track2 = str(self.metadata.get(dbus.String(u'xesam:trackNumber'))) + " - " + self.metadata.get(dbus.String(u'xesam:artist'))[0] + " - " + self.metadata.get(dbus.String(u'xesam:title'))
+        self.track2 = self.get_track(self.metadata)
 
         # TODO: Debug
         #print ("uri changed event")
