@@ -17,11 +17,11 @@ import traceback
 
 #global debug_logging
 app_version = "0.1.1"
-debug_logging = False
 output_dir = "Audio"
 output_filename_pattern = "{trackNumber} - {artist} - {title}"
 
 # Global variables
+global debug_logging
 global spotify
 
 # Variables which change during runtime
@@ -38,9 +38,8 @@ def main():
     print()
 
     # Check if debug logging is requested
-    #global debug_logging
-    #debug_logging = os.environ.get('SPOTIFYRECORDER_DEBUG')
-    # Currently set as a readonly var
+    global debug_logging
+    debug_logging = os.environ.get('SPOTIFYRECORDER_DEBUG')
 
     # Create the output directory
     os.makedirs(output_dir, exist_ok=True)
