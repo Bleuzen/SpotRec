@@ -120,6 +120,51 @@ class Spotify:
     def get_track(self, metadata):
         return output_filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
 
+    def start_record(self):
+        # Copy instances list at this state
+        oldinstances = FFmpeg.instances.copy()
+
+        # Start new recording in new Thread
+        class RecordThread(Thread):
+            def run(self2):
+                # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
+                self2.trackid_when_thread_started = self.trackid
+
+                # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
+                time.sleep(4)
+                # Check if still the same song is playing
+                if self2.trackid_when_thread_started == self.trackid:
+                    global is_script_paused
+                    # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
+                    is_script_paused = True
+                    self.send_dbus_cmd("Pause")
+                    time.sleep(1)
+                    is_script_paused = False
+                    self.send_dbus_cmd("Previous")
+
+                    # Start FFmpeg recording
+                    ff = FFmpeg()
+                    ff.record(self.track)
+
+                    # Play the track
+                    self.send_dbus_cmd("Play")
+
+        record_thread = RecordThread()
+        record_thread.start()
+
+        # Stop old FFmpeg instance (from recording of song before) (if one is running)
+        if len(oldinstances) > 0:
+            class OverheadRecordingStopThread(Thread):
+                def run(self):
+                    # Record a little longer to not miss something
+                    time.sleep(2)
+
+                    # Stop the recording
+                    oldinstances[0].stop()
+
+            overhead_recording_stop_thread = OverheadRecordingStopThread()
+            overhead_recording_stop_thread.start()
+
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playingUriChanged(self, Player, three, four):
         global iface
@@ -157,49 +202,7 @@ class Spotify:
     def playing_song_changed(self):
         print("[Spotify] Song changed: " + self.track)
 
-        # Copy instances list at this state
-        oldinstances = FFmpeg.instances.copy()
-
-        # Start new recording in new Thread
-        class RecordThread(Thread):
-            def run(self2):
-                # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
-                self2.trackid_when_thread_started = self.trackid
-
-                # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
-                global is_script_paused
-                time.sleep(4)
-                # Check if still the same song is playing
-                if self2.trackid_when_thread_started == self.trackid:
-                    # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
-                    is_script_paused = True
-                    self.send_dbus_cmd("Pause")
-                    time.sleep(1)
-                    is_script_paused = False
-                    self.send_dbus_cmd("Previous")
-
-                    # Start FFmpeg recording
-                    ff = FFmpeg()
-                    ff.record(self.track)
-
-                    # Play the track
-                    self.send_dbus_cmd("Play")
-
-        record_thread = RecordThread()
-        record_thread.start()
-
-        # Stop old FFmpeg instance (from recording of song before) (if one is running)
-        if len(oldinstances) > 0:
-            class OverheadRecordingStopThread(Thread):
-                def run(self):
-                    # Record a little longer to not miss something
-                    time.sleep(2)
-
-                    # Stop the recording
-                    oldinstances[0].stop()
-
-            overhead_recording_stop_thread = OverheadRecordingStopThread()
-            overhead_recording_stop_thread.start()
+        self.start_record()
 
     def playbackstatus_changed(self):
         print("[Spotify] State changed: " + self.playbackstatus)
