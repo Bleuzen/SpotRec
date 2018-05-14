@@ -87,7 +87,7 @@ class Spotify:
             pass
 
         self.track = self.get_track(self.metadata)
-
+        self.trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
         self.playbackstatus = self.iface.Get(self.mpris_player_string, "PlaybackStatus")
 
         self.iface.connect_to_signal("PropertiesChanged", self.on_playingUriChanged)
@@ -127,20 +127,20 @@ class Spotify:
         global track
         global home
 
-        # Update Metadata
-        self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
-
-        # Update track
-
-        self.track2 = self.get_track(self.metadata)
-
         # TODO: Debug
         #print ("uri changed event")
 
-        if self.track != self.track2:
-            # Update track name
-            self.track = self.track2
+        # Update Metadata
+        self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
+        # Update track & trackid
+
+        self.trackid2 = self.metadata.get(dbus.String(u'mpris:trackid'))
+        if self.trackid != self.trackid2:
+            # Update trackid
+            self.trackid = self.trackid2
+            # Update track name
+            self.track = self.get_track(self.metadata)
             # Trigger event method
             self.playing_song_changed()
 
@@ -156,7 +156,7 @@ class Spotify:
             self.playbackstatus_changed()
 
     def playing_song_changed(self):
-        print("Song changed: " + self.track)
+        print("[Spotify] Song changed: " + self.track)
 
         # Copy instances list at this state
         oldinstances = FFmpeg.instances.copy()
@@ -164,22 +164,27 @@ class Spotify:
         # Start new recording in new Thread
         class RecordThread(Thread):
             def run(self2):
+                # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
+                self2.trackid_when_thread_started = self.trackid
+
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
                 global is_script_paused
                 time.sleep(4)
-                # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
-                is_script_paused = True
-                self.send_dbus_cmd("Pause")
-                time.sleep(1)
-                is_script_paused = False
-                self.send_dbus_cmd("Previous")
+                # Check if still the same song is playing
+                if self2.trackid_when_thread_started == self.trackid:
+                    # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
+                    is_script_paused = True
+                    self.send_dbus_cmd("Pause")
+                    time.sleep(1)
+                    is_script_paused = False
+                    self.send_dbus_cmd("Previous")
 
-                # Start FFmpeg recording
-                ff = FFmpeg()
-                ff.record(self.track)
+                    # Start FFmpeg recording
+                    ff = FFmpeg()
+                    ff.record(self.track)
 
-                # Play the track
-                self.send_dbus_cmd("Play")
+                    # Play the track
+                    self.send_dbus_cmd("Play")
 
         record_thread = RecordThread()
         record_thread.start()
@@ -198,7 +203,7 @@ class Spotify:
             overhead_recording_stop_thread.start()
 
     def playbackstatus_changed(self):
-        print("Playback status changed: " + self.playbackstatus)
+        print("[Spotify] State changed: " + self.playbackstatus)
 
         if(self.playbackstatus == "Paused"):
             if not is_script_paused:
@@ -220,7 +225,8 @@ class FFmpeg:
     # The blocking version of this method waits until the process is dead
     def stopBlocking(self):
         # Remove from instances list
-        self.instances.remove(self)
+        if self in self.instances:
+            self.instances.remove(self)
 
         # Send CTRL_C
         self.process.terminate()
