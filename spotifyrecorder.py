@@ -219,7 +219,7 @@ class FFmpeg:
 
         self.instances.append(self)
 
-        print("[FFmpeg] [" + self.pid + "] started")
+        print("[FFmpeg] [" + self.pid + "] Recording started: " + filename)
 
     # The blocking version of this method waits until the process is dead
     def stopBlocking(self):
