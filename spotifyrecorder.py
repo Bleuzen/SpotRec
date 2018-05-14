@@ -110,7 +110,7 @@ class Spotify:
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
     def send_dbus_cmd(self, cmd):
-        Shell.run('dbus-send --print-reply --dest=' + self.dbus_dest + ' ' + self.dbus_path + ' org.mpris.MediaPlayer2.Player.' + cmd)
+        Shell.run('dbus-send --print-reply --dest=' + self.dbus_dest + ' ' + self.dbus_path + ' ' + self.mpris_player_string + '.' + cmd)
 
     def quitGLibLoop(self):
         self.glibloop.quit()
