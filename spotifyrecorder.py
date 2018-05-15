@@ -8,21 +8,22 @@ from gi.repository import GLib
 from threading import Thread
 import subprocess
 import time
-import sys, os
+import sys
+import os
+import argparse
 import traceback
 
-# Deps: ffmpeg, python-dbus
-
-# Final variables
-
 app_version = "0.1.1"
-output_dir = "Audio"
-output_filename_pattern = "{trackNumber} - {artist} - {title}"
 
-# Variables which change during runtime
+# Settings with Defaults
+_output_directory = "Audio"
+_filename_pattern = "{trackNumber} - {artist} - {title}"
+
 is_script_paused = False
 
 def main():
+    handle_command_line()
+
     print("Spotify Recorder v" + app_version)
     print("This is an very early and experimental version. It doesn't have settings, but therefore some bugs ;)")
     print("You have to use 'pavucontrol' to set it to record from the right source.")
@@ -32,12 +33,8 @@ def main():
     print('This software is for "educational" purposes only. No responsibility is held or accepted for misuse.')
     print()
 
-    # Check if debug logging is requested
-    global _debug_logging
-    _debug_logging = os.environ.get('SPOTIFYRECORDER_DEBUG')
-
     # Create the output directory
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(_output_directory, exist_ok=True)
 
     # Init Spotify DBus listener
     global _spotify
@@ -61,6 +58,23 @@ def doExit():
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
     #sys.exit(0)
+
+def handle_command_line():
+    global _debug_logging
+    global _output_directory
+    global _filename_pattern
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-o", "--output-directory", help="Where to save the recordings", default=_output_directory)
+    parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings", default=_filename_pattern)
+    parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=False)
+    args = parser.parse_args()
+
+    _debug_logging = args.debug
+
+    _filename_pattern = args.filename_pattern
+
+    _output_directory = args.output_directory
 
 class Spotify:
     dbus_dest = "org.mpris.MediaPlayer2.spotify"
@@ -113,7 +127,7 @@ class Spotify:
         print("[Recorder] Spotify DBus listener stopped")
 
     def get_track(self, metadata):
-        return output_filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
+        return _filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
 
     def start_record(self):
         # Copy instances list at this state
@@ -214,7 +228,7 @@ class FFmpeg:
     instances = []
 
     def record(self, filename):
-        self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + output_dir + "/" + filename + '.flac"')
+        self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
 
         self.pid = str(self.process.pid)
 
