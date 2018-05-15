@@ -163,7 +163,7 @@ class Spotify:
                     time.sleep(2)
 
                     # Stop the recording
-                    oldinstances[0].stop()
+                    oldinstances[0].stopBlocking()
 
             overhead_recording_stop_thread = OverheadRecordingStopThread()
             overhead_recording_stop_thread.start()
