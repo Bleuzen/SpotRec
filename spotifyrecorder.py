@@ -13,7 +13,7 @@ import os
 import argparse
 import traceback
 
-app_version = "0.1.1"
+app_version = "0.2"
 
 # Settings with Defaults
 _output_directory = "Audio"
