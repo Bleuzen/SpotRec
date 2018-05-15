@@ -25,9 +25,10 @@ def main():
     handle_command_line()
 
     print("Spotify Recorder v" + app_version)
-    print("This is an very early and experimental version. It doesn't have settings, but therefore some bugs ;)")
+    print("This is an very early and experimental version. Expect some bugs ;)")
     print("You have to use 'pavucontrol' to set it to record from the right source.")
-    print('Recordings are save to a directory called "Audio" in your current working directory. Existing files will be overridden.')
+    print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
+    print('Use --help as argument to see all options.')
     print()
     print("Disclaimer:")
     print('This software is for "educational" purposes only. No responsibility is held or accepted for misuse.')
