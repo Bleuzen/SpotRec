@@ -233,24 +233,25 @@ class FFmpeg:
         if self in self.instances:
             self.instances.remove(self)
 
-        # Send CTRL_C
-        self.process.terminate()
+            # Send CTRL_C
+            self.process.terminate()
 
-        print("[FFmpeg] [" + self.pid + "] terminated")
+            print("[FFmpeg] [" + self.pid + "] terminated")
 
-        # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
-        time.sleep(1)
+            # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
+            time.sleep(1)
 
-        if self.process.poll() == None:
-            # None means it has no return code (yet), with other words: it is still running
+            if self.process.poll() == None:
+                # None means it has no return code (yet), with other words: it is still running
 
-            self.process.kill()
+                self.process.kill()
 
-            print("[FFmpeg] [" + self.pid + "] killed")
+                print("[FFmpeg] [" + self.pid + "] killed")
 
-        # Remove process from memory (and don't left a ffmpeg 'zombie' process)
-        self.process = None
+            # Remove process from memory (and don't left a ffmpeg 'zombie' process)
+            self.process = None
 
+    # Kill the process in the background
     def stop(self):
         class KillThread(Thread):
             def run(self2):
