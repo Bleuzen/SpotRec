@@ -15,14 +15,9 @@ import traceback
 
 # Final variables
 
-#global debug_logging
 app_version = "0.1.1"
 output_dir = "Audio"
 output_filename_pattern = "{trackNumber} - {artist} - {title}"
-
-# Global variables
-global debug_logging
-global spotify
 
 # Variables which change during runtime
 is_script_paused = False
@@ -38,15 +33,15 @@ def main():
     print()
 
     # Check if debug logging is requested
-    global debug_logging
-    debug_logging = os.environ.get('SPOTIFYRECORDER_DEBUG')
+    global _debug_logging
+    _debug_logging = os.environ.get('SPOTIFYRECORDER_DEBUG')
 
     # Create the output directory
     os.makedirs(output_dir, exist_ok=True)
 
     # Init Spotify DBus listener
-    global spotify
-    spotify = Spotify()
+    global _spotify
+    _spotify = Spotify()
 
     # Keep the main thread alive (to be able to handle KeyboardInterrupt)
     while True:
@@ -56,7 +51,7 @@ def doExit():
     print("[Recorder] Shutting down ...")
 
     # Stop Spotify DBus listener
-    spotify.quitGLibLoop()
+    _spotify.quitGLibLoop()
 
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
@@ -274,7 +269,7 @@ class Shell:
     @staticmethod
     def run(cmd):
         # 'run()' waits until the process is done
-        if debug_logging:
+        if _debug_logging:
             return subprocess.run(cmd, stdin=None, shell=True)
         else:
             with open("/dev/null", "w") as devnull:
@@ -283,7 +278,7 @@ class Shell:
     @staticmethod
     def Popen(cmd):
         # 'Popen()' continues running in the background
-        if debug_logging:
+        if _debug_logging:
             return subprocess.Popen(cmd, stdin=None, shell=True)
         else:
             with open("/dev/null", "w") as devnull:
