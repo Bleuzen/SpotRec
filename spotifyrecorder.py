@@ -53,7 +53,7 @@ def main():
         time.sleep(1)
 
 def doExit():
-    print("Shutting down ...")
+    print("[Recorder] Shutting down ...")
 
     # Stop Spotify DBus listener
     spotify.quitGLibLoop()
@@ -61,7 +61,7 @@ def doExit():
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
 
-    print("Bye")
+    print("[Recorder] Bye")
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
@@ -98,15 +98,15 @@ class Spotify:
                 self.glibloop.run()
 
                 # run() blocks this thread. This gets printed after it's dead.
-                print("GLib Loop thread killed")
+                print("[Recorder] GLib Loop thread killed")
 
         dbuslistener = DBusListenerThread()
         dbuslistener.start()
 
-        print("Spotify DBus listener started")
+        print("[Recorder] Spotify DBus listener started")
 
-        print("Current song: " + self.track)
-        print("Current state: " + self.playbackstatus)
+        print("[Recorder] Current song: " + self.track)
+        print("[Recorder] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
     def send_dbus_cmd(self, cmd):
@@ -115,7 +115,7 @@ class Spotify:
     def quitGLibLoop(self):
         self.glibloop.quit()
 
-        print("Spotify DBus listener stopped")
+        print("[Recorder] Spotify DBus listener stopped")
 
     def get_track(self, metadata):
         return output_filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
@@ -134,6 +134,8 @@ class Spotify:
                 time.sleep(4)
                 # Check if still the same song is playing
                 if self2.trackid_when_thread_started == self.trackid:
+                    print("[Recorder] Starting recording")
+
                     global is_script_paused
                     # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
                     is_script_paused = True
@@ -209,7 +211,7 @@ class Spotify:
 
         if self.playbackstatus == "Paused":
             if not is_script_paused:
-                print("You paused Spotify playback (or the playlist / album is over)")
+                print("[Recorder] You paused Spotify playback (or the playlist / album is over)")
                 doExit()
 
 class FFmpeg:
@@ -230,20 +232,20 @@ class FFmpeg:
         if self in self.instances:
             self.instances.remove(self)
 
-            # Send CTRL_C
-            self.process.terminate()
+        # Send CTRL_C
+        self.process.terminate()
 
-            print("[FFmpeg] [" + self.pid + "] terminated")
+        print("[FFmpeg] [" + self.pid + "] terminated")
 
-            # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
-            time.sleep(1)
+        # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
+        time.sleep(1)
 
-            if self.process.poll() == None:
-                # None means it has no return code (yet), with other words: it is still running
+        if self.process.poll() == None:
+            # None means it has no return code (yet), with other words: it is still running
 
-                self.process.kill()
+            self.process.kill()
 
-                print("[FFmpeg] [" + self.pid + "] killed")
+            print("[FFmpeg] [" + self.pid + "] killed")
 
         # Remove process from memory (and don't left a ffmpeg 'zombie' process)
         self.process = None
