@@ -13,11 +13,14 @@ import os
 import argparse
 import traceback
 
-app_version = "0.2"
+app_version = "0.3.0"
 
 # Settings with Defaults
 _output_directory = "Audio"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
+
+# Hard-coded settings
+_pulse_sink_name = "spotrec"
 
 is_script_paused = False
 
@@ -41,6 +44,10 @@ def main():
     global _spotify
     _spotify = Spotify()
 
+    # Load PulseAudio sink if user requested it
+    if _create_pa_sink:
+        PulseAudio.load_sink()
+
     # Keep the main thread alive (to be able to handle KeyboardInterrupt)
     while True:
         time.sleep(1)
@@ -54,6 +61,10 @@ def doExit():
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
 
+    # Unload PulseAudio sink if it was loaded
+    if _create_pa_sink:
+        PulseAudio.unload_sink()
+
     print("[Recorder] Bye")
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
@@ -62,16 +73,20 @@ def doExit():
 
 def handle_command_line():
     global _debug_logging
+    global _create_pa_sink
     global _output_directory
     global _filename_pattern
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=False)
+    parser.add_argument("-s", "--create-sink", help="Create an extra PulseAudio sink for recording", action="store_true", default=False)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings", default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings", default=_filename_pattern)
-    parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=False)
     args = parser.parse_args()
 
     _debug_logging = args.debug
+
+    _create_pa_sink = args.create_sink
 
     _filename_pattern = args.filename_pattern
 
@@ -247,7 +262,7 @@ class FFmpeg:
 
             print("[FFmpeg] [" + self.pid + "] terminated")
 
-            # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
+            # Sometimes this is not enough and ffmpeg survives (also there is a bug with the Archlinux FFmpeg), so we have to kill it after some time
             time.sleep(1)
 
             if self.process.poll() == None:
@@ -297,6 +312,26 @@ class Shell:
         else:
             with open("/dev/null", "w") as devnull:
                 return subprocess.Popen(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True)
+
+    @staticmethod
+    def check_output(cmd):
+        out = subprocess.check_output(cmd, shell=True)
+        return out.decode()
+
+class PulseAudio:
+    sink_id = ""
+
+    @staticmethod
+    def load_sink():
+        print("[Recorder] Creating pulse sink")
+        PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" channels=2 remix=no')
+        # To use another master sink where to play:
+        # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
+
+    @staticmethod
+    def unload_sink():
+        print("[Recorder] Unloading pulse sink")
+        Shell.run('pactl unload-module ' + PulseAudio.sink_id)
 
 if __name__ == "__main__":
     # Handle exit (not print error when pressing Ctrl^C)
