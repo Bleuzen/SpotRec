@@ -154,13 +154,12 @@ class Spotify:
                     is_script_paused = False
                     self.send_dbus_cmd("Previous")
 
-                    #TODO: (Maybe move the Play command after FFmpeg recording start (again)?; but the Play command need some time to take effect anyway, so it should be ok in most cases as it is)
-                    # Play the track
-                    self.send_dbus_cmd("Play")
-
                     # Start FFmpeg recording
                     ff = FFmpeg()
                     ff.record(self.track)
+
+                    # Play the track
+                    self.send_dbus_cmd("Play")
 
         record_thread = RecordThread()
         record_thread.start()
