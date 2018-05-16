@@ -141,7 +141,7 @@ class Spotify:
                 self2.trackid_when_thread_started = self.trackid
 
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
-                time.sleep(4)
+                time.sleep(4.5)
                 # Check if still the same song is playing
                 if self2.trackid_when_thread_started == self.trackid:
                     print("[Recorder] Starting recording")
