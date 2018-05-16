@@ -79,12 +79,15 @@ def handle_command_line():
     global _output_directory
     global _filename_pattern
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Spotify Recorder v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=False)
     parser.add_argument("-s", "--create-sink", help="Create an extra PulseAudio sink for recording", action="store_true", default=False)
     parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=False)
-    parser.add_argument("-o", "--output-directory", help="Where to save the recordings", default=_output_directory)
-    parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings", default=_filename_pattern)
+    parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
+                                                         "Default: " + _output_directory, default=_output_directory)
+    parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
+                                                         "Default: " + _filename_pattern, default=_filename_pattern)
     args = parser.parse_args()
 
     _debug_logging = args.debug
@@ -178,6 +181,9 @@ class Spotify:
                     ff = FFmpeg()
                     ff.record(self.track)
 
+                    # Uncomment to record some time of silence at the beginning
+                    #time.sleep(0.5)
+
                     # Play the track
                     self.send_dbus_cmd("Play")
 
@@ -260,7 +266,7 @@ class FFmpeg:
 
         self.instances.append(self)
 
-        print("[FFmpeg] [" + self.pid + "] Recording started: " + filename)
+        print("[FFmpeg] [" + self.pid + "] Recording started")
 
     # The blocking version of this method waits until the process is dead
     def stopBlocking(self):
@@ -273,7 +279,7 @@ class FFmpeg:
 
             print("[FFmpeg] [" + self.pid + "] terminated")
 
-            # Sometimes this is not enough and ffmpeg survives (also there is a bug with the Archlinux FFmpeg), so we have to kill it after some time
+            # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
             time.sleep(1)
 
             if self.process.poll() == None:
@@ -337,10 +343,10 @@ class PulseAudio:
         print("[Recorder] Creating pulse sink")
         if _mute_pa_sink:
             print("muted sink")
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '"')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
         else:
             print("loopback sink")
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" channels=2 remix=no')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2 remix=no')
             # To use another master sink where to play:
             # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
