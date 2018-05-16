@@ -30,7 +30,7 @@ def main():
 
     print("Spotify Recorder v" + app_version)
     print("This is an very early and experimental version. Expect some bugs ;)")
-    print("You have to use 'pavucontrol' to set it to record from the right source.")
+    print("You have to use 'pavucontrol' to set it to record from the right source and / or to set Spotify to output to the right sink.")
     print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
     print('Use --help as argument to see all options.')
     print()
