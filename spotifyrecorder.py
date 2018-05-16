@@ -74,12 +74,14 @@ def doExit():
 def handle_command_line():
     global _debug_logging
     global _create_pa_sink
+    global _mute_pa_sink
     global _output_directory
     global _filename_pattern
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=False)
     parser.add_argument("-s", "--create-sink", help="Create an extra PulseAudio sink for recording", action="store_true", default=False)
+    parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=False)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings", default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings", default=_filename_pattern)
     args = parser.parse_args()
@@ -87,6 +89,8 @@ def handle_command_line():
     _debug_logging = args.debug
 
     _create_pa_sink = args.create_sink
+
+    _mute_pa_sink = args.mute_sink
 
     _filename_pattern = args.filename_pattern
 
@@ -324,9 +328,14 @@ class PulseAudio:
     @staticmethod
     def load_sink():
         print("[Recorder] Creating pulse sink")
-        PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" channels=2 remix=no')
-        # To use another master sink where to play:
-        # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
+        if _mute_pa_sink:
+            print("muted sink")
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '"')
+        else:
+            print("loopback sink")
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" channels=2 remix=no')
+            # To use another master sink where to play:
+            # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
     @staticmethod
     def unload_sink():
