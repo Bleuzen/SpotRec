@@ -21,6 +21,7 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 
 # Hard-coded settings
 _pulse_sink_name = "spotrec"
+_pulse_sink_monitor = _pulse_sink_name + ".monitor"
 
 is_script_paused = False
 
@@ -247,7 +248,13 @@ class FFmpeg:
     instances = []
 
     def record(self, filename):
-        self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
+        if _create_pa_sink:
+            self.pulse_input = _pulse_sink_monitor
+        else:
+            self.pulse_input = "default"
+
+        # self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
+        self.process = Shell.Popen('ffmpeg -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + filename + '.flac"')
 
         self.pid = str(self.process.pid)
 
