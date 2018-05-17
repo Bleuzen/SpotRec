@@ -20,7 +20,7 @@ import traceback
 # 'gawk': awk in command to get sink input id of spotify
 # 'pulseaudio': sink control stuff
 
-app_version = "0.3.1"
+app_version = "0.4.0"
 
 # Settings with Defaults
 _debug_logging = False
