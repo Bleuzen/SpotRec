@@ -13,6 +13,13 @@ import os
 import argparse
 import traceback
 
+# Deps:
+# 'python'
+# 'python-dbus'
+# 'ffmpeg'
+# 'gawk': awk in command to get sink input id of spotify
+# 'pulseaudio': sink control stuff
+
 app_version = "0.3.1"
 
 # Settings with Defaults
@@ -21,7 +28,6 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 
 # Hard-coded settings
 _pulse_sink_name = "spotrec"
-_pulse_sink_monitor = _pulse_sink_name + ".monitor"
 
 is_script_paused = False
 
@@ -255,7 +261,7 @@ class FFmpeg:
 
     def record(self, filename):
         if _create_pa_sink:
-            self.pulse_input = _pulse_sink_monitor
+            self.pulse_input = _pulse_sink_name + ".monitor"
         else:
             self.pulse_input = "default"
 
@@ -341,6 +347,7 @@ class PulseAudio:
     @staticmethod
     def load_sink():
         print("[Recorder] Creating pulse sink")
+
         if _mute_pa_sink:
             PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
         else:
@@ -348,10 +355,36 @@ class PulseAudio:
             # To use another master sink where to play:
             # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
+        PulseAudio.move_spotify_to_own_sink()
+
     @staticmethod
     def unload_sink():
         print("[Recorder] Unloading pulse sink")
         Shell.run('pactl unload-module ' + PulseAudio.sink_id)
+
+    @staticmethod
+    def get_spotify_sink_input_id():
+        application_name = "spotify"
+        cmdout = Shell.check_output("pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $2} /application.name = \"" + application_name + "\"/ {print $3};'")
+        index = -1
+        last = -1
+
+        for line in cmdout.split('\n'):
+            if line == '"' + application_name + '"':
+                index = last[1:]
+                break
+            last = line
+
+        return index
+
+    @staticmethod
+    def move_spotify_to_own_sink():
+        exitcode = Shell.run("pactl move-sink-input " + PulseAudio.get_spotify_sink_input_id() + " " + _pulse_sink_name).returncode
+
+        if exitcode == 0:
+            print("[Recorder] Moved Spotify to own sink")
+        else:
+            print("[Recorder] failed to move Spotify to own sink")
 
 if __name__ == "__main__":
     # Handle exit (not print error when pressing Ctrl^C)
