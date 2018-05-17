@@ -39,7 +39,7 @@ def main():
 
     print("Spotify Recorder v" + app_version)
     print("This is an very early and experimental version. Expect some bugs ;)")
-    print("You have to use 'pavucontrol' to set it to record from the right source and / or to set Spotify to output to the right sink.")
+    print("You may have to set Spotify to play on the '" + _pulse_sink_name + "' sink manually, for example using 'pavucontrol'.")
     print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
     print('Use --help as argument to see all options.')
     print()
@@ -263,10 +263,10 @@ class FFmpeg:
     instances = []
 
     def record(self, filename):
-        if _create_pa_sink:
-            self.pulse_input = _pulse_sink_name + ".monitor"
-        else:
+        if _no_pa_sink:
             self.pulse_input = "default"
+        else:
+            self.pulse_input = _pulse_sink_name + ".monitor"
 
         # self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
         self.process = Shell.Popen('ffmpeg -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + filename + '.flac"')
@@ -382,12 +382,15 @@ class PulseAudio:
 
     @staticmethod
     def move_spotify_to_own_sink():
-        exitcode = Shell.run("pactl move-sink-input " + PulseAudio.get_spotify_sink_input_id() + " " + _pulse_sink_name).returncode
+        spotify_id = int(PulseAudio.get_spotify_sink_input_id())
 
-        if exitcode == 0:
-            print("[Recorder] Moved Spotify to own sink")
-        else:
-            print("[Recorder] failed to move Spotify to own sink")
+        if spotify_id > -1:
+            exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
+
+            if exit_code == 0:
+                print("[Recorder] Moved Spotify to own sink")
+            else:
+                print("[Recorder] Failed to move Spotify to own sink")
 
 if __name__ == "__main__":
     # Handle exit (not print error when pressing Ctrl^C)
