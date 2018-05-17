@@ -20,6 +20,7 @@ import traceback
 # 'gawk': awk in command to get sink input id of spotify
 # 'pulseaudio': sink control stuff
 
+app_name = "Spotify Recorder" # Change to "Spotrec" sometime?
 app_version = "0.4.0"
 
 # Settings with Defaults
@@ -32,14 +33,15 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 # Hard-coded settings
 _pulse_sink_name = "spotrec"
 
+# Variables that change during runtime
 is_script_paused = False
+is_first_playing = True
 
 def main():
     handle_command_line()
 
-    print("Spotify Recorder v" + app_version)
+    print(app_name + " v" + app_version)
     print("This is an very early and experimental version. Expect some bugs ;)")
-    print("You may have to set Spotify to play on the '" + _pulse_sink_name + "' sink manually, for example using 'pavucontrol'.")
     print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
     print('Use --help as argument to see all options.')
     print()
@@ -57,6 +59,8 @@ def main():
     # Load PulseAudio sink if wanted
     if not _no_pa_sink:
         PulseAudio.load_sink()
+
+    _spotify.try_to_move_to_sink_if_needed()
 
     # Keep the main thread alive (to be able to handle KeyboardInterrupt)
     while True:
@@ -89,7 +93,7 @@ def handle_command_line():
     global _filename_pattern
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser = argparse.ArgumentParser(description="Spotify Recorder v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=_debug_logging)
     parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
     parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
@@ -259,6 +263,16 @@ class Spotify:
                 print("[Recorder] You paused Spotify playback (or the playlist / album is over)")
                 doExit()
 
+        self.try_to_move_to_sink_if_needed()
+
+    def try_to_move_to_sink_if_needed(self):
+        if self.playbackstatus == "Playing":
+            global is_first_playing
+            if is_first_playing:
+                is_first_playing = False
+                if not _no_pa_sink:
+                    PulseAudio.move_spotify_to_own_sink()
+
 class FFmpeg:
     instances = []
 
@@ -358,8 +372,6 @@ class PulseAudio:
             # To use another master sink where to play:
             # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
-        PulseAudio.move_spotify_to_own_sink()
-
     @staticmethod
     def unload_sink():
         print("[Recorder] Unloading pulse sink")
@@ -382,15 +394,20 @@ class PulseAudio:
 
     @staticmethod
     def move_spotify_to_own_sink():
-        spotify_id = int(PulseAudio.get_spotify_sink_input_id())
+        class MoveSpotifyToSinktThread(Thread):
+            def run(self):
+                spotify_id = int(PulseAudio.get_spotify_sink_input_id())
 
-        if spotify_id > -1:
-            exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
+                if spotify_id > -1:
+                    exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
 
-            if exit_code == 0:
-                print("[Recorder] Moved Spotify to own sink")
-            else:
-                print("[Recorder] Failed to move Spotify to own sink")
+                    if exit_code == 0:
+                        print("[Recorder] Moved Spotify to own sink")
+                    else:
+                        print("[Recorder] Failed to move Spotify to own sink")
+
+        move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
+        move_spotify_to_sink_thread.start()
 
 if __name__ == "__main__":
     # Handle exit (not print error when pressing Ctrl^C)
