@@ -21,7 +21,7 @@ import traceback
 # 'pulseaudio': sink control stuff
 
 app_name = "Spotify Recorder" # Change to "Spotrec" sometime?
-app_version = "0.4.0"
+app_version = "0.4.1"
 
 # Settings with Defaults
 _debug_logging = False
