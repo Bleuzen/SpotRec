@@ -23,6 +23,9 @@ import traceback
 app_version = "0.3.1"
 
 # Settings with Defaults
+_debug_logging = False
+_no_pa_sink = False
+_mute_pa_sink = False
 _output_directory = "Audio"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 
@@ -51,8 +54,8 @@ def main():
     global _spotify
     _spotify = Spotify()
 
-    # Load PulseAudio sink if user requested it
-    if _create_pa_sink:
+    # Load PulseAudio sink if wanted
+    if not _no_pa_sink:
         PulseAudio.load_sink()
 
     # Keep the main thread alive (to be able to handle KeyboardInterrupt)
@@ -69,7 +72,7 @@ def doExit():
     FFmpeg.killAll()
 
     # Unload PulseAudio sink if it was loaded
-    if _create_pa_sink:
+    if not _no_pa_sink:
         PulseAudio.unload_sink()
 
     print("[Recorder] Bye")
@@ -80,16 +83,16 @@ def doExit():
 
 def handle_command_line():
     global _debug_logging
-    global _create_pa_sink
+    global _no_pa_sink
     global _mute_pa_sink
     global _output_directory
     global _filename_pattern
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(description="Spotify Recorder v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=False)
-    parser.add_argument("-s", "--create-sink", help="Create an extra PulseAudio sink for recording", action="store_true", default=False)
-    parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=False)
+    parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=_debug_logging)
+    parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
+    parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
@@ -98,7 +101,7 @@ def handle_command_line():
 
     _debug_logging = args.debug
 
-    _create_pa_sink = args.create_sink
+    _no_pa_sink = args.no_sink
 
     _mute_pa_sink = args.mute_sink
 
