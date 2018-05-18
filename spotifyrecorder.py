@@ -22,7 +22,7 @@ import logging
 # 'pulseaudio': sink control stuff
 
 app_name = "Spotify Recorder" # Change to "Spotrec" sometime?
-app_version = "0.4.1"
+app_version = "0.5.0"
 
 # Settings with Defaults
 _debug_logging = False
