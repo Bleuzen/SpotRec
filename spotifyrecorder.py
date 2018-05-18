@@ -32,6 +32,8 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 
 # Hard-coded settings
 _pulse_sink_name = "spotrec"
+_recording_time_before_song = 0.25
+_recording_time_after_song = 2.25
 
 # Variables that change during runtime
 is_script_paused = False
@@ -194,8 +196,8 @@ class Spotify:
                     ff = FFmpeg()
                     ff.record(self.track)
 
-                    # Uncomment to record some time of silence at the beginning
-                    #time.sleep(0.5)
+                    # Give FFmpeg some time to start up before starting the song
+                    time.sleep(_recording_time_before_song)
 
                     # Play the track
                     self.send_dbus_cmd("Play")
@@ -208,7 +210,7 @@ class Spotify:
             class OverheadRecordingStopThread(Thread):
                 def run(self):
                     # Record a little longer to not miss something
-                    time.sleep(2)
+                    time.sleep(_recording_time_after_song)
 
                     # Stop the recording
                     oldinstances[0].stopBlocking()
@@ -222,7 +224,6 @@ class Spotify:
         global track
         global home
 
-        # TODO: Debug
         #print ("uri changed event")
 
         # Update Metadata
