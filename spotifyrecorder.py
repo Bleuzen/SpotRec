@@ -12,6 +12,7 @@ import sys
 import os
 import argparse
 import traceback
+import logging
 
 # Deps:
 # 'python'
@@ -50,6 +51,8 @@ def main():
     print("Disclaimer:")
     print('This software is for "educational" purposes only. No responsibility is held or accepted for misuse.')
     print()
+
+    init_log()
 
     # Create the output directory
     os.makedirs(_output_directory, exist_ok=True)
@@ -96,7 +99,7 @@ def handle_command_line():
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("-d", "--debug", help="Print ffmpeg output", action="store_true", default=_debug_logging)
+    parser.add_argument("-d", "--debug", help="Print a little more", action="store_true", default=_debug_logging)
     parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
     parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
@@ -114,6 +117,21 @@ def handle_command_line():
     _filename_pattern = args.filename_pattern
 
     _output_directory = args.output_directory
+
+def init_log():
+    global log
+    log = logging.getLogger()
+
+    if _debug_logging:
+        FORMAT = '%(asctime)-15s - %(levelname)s - %(message)s'
+        log.setLevel(logging.DEBUG)
+    else:
+        FORMAT = '%(message)s'
+        log.setLevel(logging.INFO)
+
+    logging.basicConfig(format=FORMAT)
+
+    log.debug("Logger initialized")
 
 class Spotify:
     dbus_dest = "org.mpris.MediaPlayer2.spotify"
