@@ -284,7 +284,10 @@ class FFmpeg:
             self.pulse_input = _pulse_sink_name + ".monitor"
 
         # self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
-        self.process = Shell.Popen('ffmpeg -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + filename + '.flac"')
+        # Options:
+        #  "-hide_banner": to short the debug log a little
+        #  "-y": to overwrite existing files
+        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + filename + '.flac"')
 
         self.pid = str(self.process.pid)
 
