@@ -26,6 +26,7 @@ app_version = "0.4.1"
 
 # Settings with Defaults
 _debug_logging = False
+_skip_intro = False
 _no_pa_sink = False
 _mute_pa_sink = False
 _output_directory = "Audio"
@@ -43,14 +44,15 @@ is_first_playing = True
 def main():
     handle_command_line()
 
-    print(app_name + " v" + app_version)
-    print("This is an very early and experimental version. Expect some bugs ;)")
-    print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
-    print('Use --help as argument to see all options.')
-    print()
-    print("Disclaimer:")
-    print('This software is for "educational" purposes only. No responsibility is held or accepted for misuse.')
-    print()
+    if not _skip_intro:
+        print(app_name + " v" + app_version)
+        print("This is an very early and experimental version. Expect some bugs ;)")
+        print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
+        print('Use --help as argument to see all options.')
+        print()
+        print("Disclaimer:")
+        print('This software is for "educational" purposes only. No responsibility is held or accepted for misuse.')
+        print()
 
     init_log()
 
@@ -72,7 +74,7 @@ def main():
         time.sleep(1)
 
 def doExit():
-    print("[Recorder] Shutting down ...")
+    log.info("[Recorder] Shutting down ...")
 
     # Stop Spotify DBus listener
     _spotify.quitGLibLoop()
@@ -84,7 +86,7 @@ def doExit():
     if not _no_pa_sink:
         PulseAudio.unload_sink()
 
-    print("[Recorder] Bye")
+    log.info("[Recorder] Bye")
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
@@ -92,6 +94,7 @@ def doExit():
 
 def handle_command_line():
     global _debug_logging
+    global _skip_intro
     global _no_pa_sink
     global _mute_pa_sink
     global _output_directory
@@ -100,6 +103,7 @@ def handle_command_line():
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print a little more", action="store_true", default=_debug_logging)
+    parser.add_argument("-s", "--skip-intro", help="Skip the intro message", action="store_true", default=_skip_intro)
     parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
     parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
@@ -109,6 +113,8 @@ def handle_command_line():
     args = parser.parse_args()
 
     _debug_logging = args.debug
+
+    _skip_intro = args.skip_intro
 
     _no_pa_sink = args.no_sink
 
@@ -147,7 +153,7 @@ class Spotify:
             self.iface = dbus.Interface(player, "org.freedesktop.DBus.Properties")
             self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
         except DBusException as e:
-            print ("Failed to connect to Spotify. (Maybe it's not running yet?)")
+            log.error("Failed to connect to Spotify. (Maybe it's not running yet?)")
             sys.exit(1)
             pass
 
@@ -164,15 +170,15 @@ class Spotify:
                 self.glibloop.run()
 
                 # run() blocks this thread. This gets printed after it's dead.
-                print("[Recorder] GLib Loop thread killed")
+                log.info("[Recorder] GLib Loop thread killed")
 
         dbuslistener = DBusListenerThread()
         dbuslistener.start()
 
-        print("[Recorder] Spotify DBus listener started")
+        log.info("[Recorder] Spotify DBus listener started")
 
-        print("[Recorder] Current song: " + self.track)
-        print("[Recorder] Current state: " + self.playbackstatus)
+        log.info("[Recorder] Current song: " + self.track)
+        log.info("[Recorder] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
     def send_dbus_cmd(self, cmd):
@@ -181,7 +187,7 @@ class Spotify:
     def quitGLibLoop(self):
         self.glibloop.quit()
 
-        print("[Recorder] Spotify DBus listener stopped")
+        log.info("[Recorder] Spotify DBus listener stopped")
 
     def get_track(self, metadata):
         return _filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
@@ -200,7 +206,7 @@ class Spotify:
                 time.sleep(4.5)
                 # Check if still the same song is playing
                 if self2.trackid_when_thread_started == self.trackid:
-                    print("[Recorder] Starting recording")
+                    log.info("[Recorder] Starting recording")
 
                     global is_script_paused
                     # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
@@ -242,7 +248,7 @@ class Spotify:
         global track
         global home
 
-        #print ("uri changed event")
+        #log.debug("uri changed event")
 
         # Update Metadata
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
@@ -270,16 +276,16 @@ class Spotify:
             self.playbackstatus_changed()
 
     def playing_song_changed(self):
-        print("[Spotify] Song changed: " + self.track)
+        log.info("[Spotify] Song changed: " + self.track)
 
         self.start_record()
 
     def playbackstatus_changed(self):
-        print("[Spotify] State changed: " + self.playbackstatus)
+        log.info("[Spotify] State changed: " + self.playbackstatus)
 
         if self.playbackstatus == "Paused":
             if not is_script_paused:
-                print("[Recorder] You paused Spotify playback (or the playlist / album is over)")
+                log.info("[Recorder] You paused Spotify playback (or the playlist / album is over)")
                 doExit()
 
         self.try_to_move_to_sink_if_needed()
@@ -311,7 +317,7 @@ class FFmpeg:
 
         self.instances.append(self)
 
-        print("[FFmpeg] [" + self.pid + "] Recording started")
+        log.info("[FFmpeg] [" + self.pid + "] Recording started")
 
     # The blocking version of this method waits until the process is dead
     def stopBlocking(self):
@@ -322,7 +328,7 @@ class FFmpeg:
             # Send CTRL_C
             self.process.terminate()
 
-            print("[FFmpeg] [" + self.pid + "] terminated")
+            log.info("[FFmpeg] [" + self.pid + "] terminated")
 
             # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
             time.sleep(1)
@@ -332,7 +338,7 @@ class FFmpeg:
 
                 self.process.kill()
 
-                print("[FFmpeg] [" + self.pid + "] killed")
+                log.info("[FFmpeg] [" + self.pid + "] killed")
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
@@ -348,15 +354,18 @@ class FFmpeg:
 
     @staticmethod
     def killAll():
-        print ("[FFmpeg] killing all instances")
+        log.info("[FFmpeg] killing all instances")
 
         # Run as long as list ist not empty
         while FFmpeg.instances:
             FFmpeg.instances[0].stopBlocking()
 
-        print ("[FFmpeg] all instances killed")
+        log.info("[FFmpeg] all instances killed")
 
 class Shell:
+    #TODO: maybe force to use bash?
+    #subprocess.check_output(cmd, shell=True, executable="/bin/bash")
+
     @staticmethod
     def run(cmd):
         # 'run()' waits until the process is done
@@ -385,7 +394,7 @@ class PulseAudio:
 
     @staticmethod
     def load_sink():
-        print("[Recorder] Creating pulse sink")
+        log.info("[Recorder] Creating pulse sink")
 
         if _mute_pa_sink:
             PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
@@ -396,7 +405,7 @@ class PulseAudio:
 
     @staticmethod
     def unload_sink():
-        print("[Recorder] Unloading pulse sink")
+        log.info("[Recorder] Unloading pulse sink")
         Shell.run('pactl unload-module ' + PulseAudio.sink_id)
 
     @staticmethod
@@ -424,9 +433,9 @@ class PulseAudio:
                     exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
 
                     if exit_code == 0:
-                        print("[Recorder] Moved Spotify to own sink")
+                        log.info("[Recorder] Moved Spotify to own sink")
                     else:
-                        print("[Recorder] Failed to move Spotify to own sink")
+                        log.warning("[Recorder] Failed to move Spotify to own sink")
 
         move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
         move_spotify_to_sink_thread.start()
