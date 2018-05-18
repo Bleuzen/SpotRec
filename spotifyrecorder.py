@@ -193,9 +193,6 @@ class Spotify:
         return _filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
 
     def start_record(self):
-        # Copy instances list at this state
-        oldinstances = FFmpeg.instances.copy()
-
         # Start new recording in new Thread
         class RecordThread(Thread):
             def run(self2):
@@ -229,18 +226,18 @@ class Spotify:
         record_thread = RecordThread()
         record_thread.start()
 
-        # Stop old FFmpeg instance (from recording of song before) (if one is running)
-        if len(oldinstances) > 0:
-            class OverheadRecordingStopThread(Thread):
-                def run(self):
+        class OverheadRecordingStopThread(Thread):
+            def run(self):
+                # Stop the oldest FFmpeg instance (from recording of song before) (if one is running)
+                if len(FFmpeg.instances) > 0:
                     # Record a little longer to not miss something
                     time.sleep(_recording_time_after_song)
 
                     # Stop the recording
-                    oldinstances[0].stopBlocking()
+                    FFmpeg.instances[0].stopBlocking()
 
-            overhead_recording_stop_thread = OverheadRecordingStopThread()
-            overhead_recording_stop_thread.start()
+        overhead_recording_stop_thread = OverheadRecordingStopThread()
+        overhead_recording_stop_thread.start()
 
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playingUriChanged(self, Player, three, four):
