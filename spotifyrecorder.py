@@ -21,8 +21,8 @@ import logging
 # 'gawk': awk in command to get sink input id of spotify
 # 'pulseaudio': sink control stuff
 
-app_name = "Spotify Recorder" # Change to "Spotrec" sometime?
-app_version = "0.5.1"
+app_name = "SpotRec"
+app_version = "0.6.0"
 
 # Settings with Defaults
 _debug_logging = False
@@ -74,7 +74,7 @@ def main():
         time.sleep(1)
 
 def doExit():
-    log.info("[Recorder] Shutting down ...")
+    log.info("[" + app_name + "] Shutting down ...")
 
     # Stop Spotify DBus listener
     _spotify.quitGLibLoop()
@@ -86,7 +86,7 @@ def doExit():
     if not _no_pa_sink:
         PulseAudio.unload_sink()
 
-    log.info("[Recorder] Bye")
+    log.info("[" + app_name + "] Bye")
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
@@ -170,15 +170,15 @@ class Spotify:
                 self.glibloop.run()
 
                 # run() blocks this thread. This gets printed after it's dead.
-                log.info("[Recorder] GLib Loop thread killed")
+                log.info("[" + app_name + "] GLib Loop thread killed")
 
         dbuslistener = DBusListenerThread()
         dbuslistener.start()
 
-        log.info("[Recorder] Spotify DBus listener started")
+        log.info("[" + app_name + "] Spotify DBus listener started")
 
-        log.info("[Recorder] Current song: " + self.track)
-        log.info("[Recorder] Current state: " + self.playbackstatus)
+        log.info("[" + app_name + "] Current song: " + self.track)
+        log.info("[" + app_name + "] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
     def send_dbus_cmd(self, cmd):
@@ -187,7 +187,7 @@ class Spotify:
     def quitGLibLoop(self):
         self.glibloop.quit()
 
-        log.info("[Recorder] Spotify DBus listener stopped")
+        log.info("[" + app_name + "] Spotify DBus listener stopped")
 
     def get_track(self, metadata):
         return _filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
@@ -207,7 +207,7 @@ class Spotify:
                 time.sleep(4.5)
                 # Check if still the same song is playing
                 if self2.trackid_when_thread_started == self.trackid:
-                    log.info("[Recorder] Starting recording")
+                    log.info("[" + app_name + "] Starting recording")
 
                     global is_script_paused
                     # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
@@ -287,7 +287,7 @@ class Spotify:
 
         if self.playbackstatus == "Paused":
             if not is_script_paused:
-                log.info("[Recorder] You paused Spotify playback (or the playlist / album is over)")
+                log.info("[" + app_name + "] You paused Spotify playback (or the playlist / album is over)")
                 doExit()
 
         self.try_to_move_to_sink_if_needed()
@@ -396,7 +396,7 @@ class PulseAudio:
 
     @staticmethod
     def load_sink():
-        log.info("[Recorder] Creating pulse sink")
+        log.info("[" + app_name + "] Creating pulse sink")
 
         if _mute_pa_sink:
             PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
@@ -407,7 +407,7 @@ class PulseAudio:
 
     @staticmethod
     def unload_sink():
-        log.info("[Recorder] Unloading pulse sink")
+        log.info("[" + app_name + "] Unloading pulse sink")
         Shell.run('pactl unload-module ' + PulseAudio.sink_id)
 
     @staticmethod
@@ -435,9 +435,9 @@ class PulseAudio:
                     exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
 
                     if exit_code == 0:
-                        log.info("[Recorder] Moved Spotify to own sink")
+                        log.info("[" + app_name + "] Moved Spotify to own sink")
                     else:
-                        log.warning("[Recorder] Failed to move Spotify to own sink")
+                        log.warning("[" + app_name + "] Failed to move Spotify to own sink")
 
         move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
         move_spotify_to_sink_thread.start()
