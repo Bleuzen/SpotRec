@@ -199,6 +199,10 @@ class Spotify:
                 # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
                 self2.trackid_when_thread_started = self.trackid
 
+                # Stop the recording before
+                # Use copy() to not change the list during this method runs
+                self.stop_old_recording(FFmpeg.instances.copy())
+
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
                 time.sleep(4.5)
                 # Check if still the same song is playing
@@ -226,18 +230,19 @@ class Spotify:
         record_thread = RecordThread()
         record_thread.start()
 
-        class OverheadRecordingStopThread(Thread):
-            def run(self):
-                # Stop the oldest FFmpeg instance (from recording of song before) (if one is running)
-                if len(FFmpeg.instances) > 0:
+    def stop_old_recording(self, instances):
+        # Stop the oldest FFmpeg instance (from recording of song before) (if one is running)
+        if len(instances) > 0:
+            class OverheadRecordingStopThread(Thread):
+                def run(self):
                     # Record a little longer to not miss something
                     time.sleep(_recording_time_after_song)
 
                     # Stop the recording
-                    FFmpeg.instances[0].stopBlocking()
+                    instances[0].stopBlocking()
 
-        overhead_recording_stop_thread = OverheadRecordingStopThread()
-        overhead_recording_stop_thread.start()
+            overhead_recording_stop_thread = OverheadRecordingStopThread()
+            overhead_recording_stop_thread.start()
 
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playingUriChanged(self, Player, three, four):
