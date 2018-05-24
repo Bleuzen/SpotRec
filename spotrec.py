@@ -9,6 +9,8 @@ from threading import Thread
 import subprocess
 import time
 import sys
+import shutil
+import re
 import os
 import argparse
 import traceback
@@ -30,7 +32,9 @@ _skip_intro = False
 _no_pa_sink = False
 _mute_pa_sink = False
 _output_directory = "Audio"
-_filename_pattern = "{trackNumber} - {artist} - {title}"
+_filename_pattern = "{artist} - {album} - {track} - {title}"
+_tmp_file = False
+_underscored_filenames = False
 
 # Hard-coded settings
 _pulse_sink_name = "spotrec"
@@ -99,6 +103,8 @@ def handle_command_line():
     global _mute_pa_sink
     global _output_directory
     global _filename_pattern
+    global _tmp_file
+    global _underscored_filenames
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
@@ -110,6 +116,8 @@ def handle_command_line():
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Default: " + _filename_pattern, default=_filename_pattern)
+    parser.add_argument("-t", "--tmp-file", help="Use a temporary file during recording and rename it only if the recording has been completed succesfully", action="store_true", default=_tmp_file)
+    parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces", action="store_true", default=_underscored_filenames)
     args = parser.parse_args()
 
     _debug_logging = args.debug
@@ -123,6 +131,10 @@ def handle_command_line():
     _filename_pattern = args.filename_pattern
 
     _output_directory = args.output_directory
+
+    _tmp_file = args.tmp_file
+
+    _underscored_filenames = args.underscored_filenames
 
 def init_log():
     global log
@@ -190,7 +202,23 @@ class Spotify:
         log.info("[" + app_name + "] Spotify DBus listener stopped")
 
     def get_track(self, metadata):
-        return _filename_pattern.format(trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2), artist=metadata.get(dbus.String(u'xesam:artist'))[0], title=metadata.get(dbus.String(u'xesam:title')))
+        if _underscored_filenames:
+            filename_pattern = re.sub(" - ", "__", _filename_pattern)
+        else:
+            filename_pattern = _filename_pattern
+
+        ret = str(filename_pattern.format(
+            artist=metadata.get(dbus.String(u'xesam:artist'))[0],
+            album=metadata.get(dbus.String(u'xesam:album')),
+            track=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2),
+            title=metadata.get(dbus.String(u'xesam:title')),
+            ))
+
+        if _underscored_filenames:
+            ret = ret.replace(".", "").lower()
+            ret = re.sub("[\s\-\[\]()']+", "_", ret)
+            ret = re.sub("__+", "__", ret)
+        return ret
 
     def start_record(self):
         # Start new recording in new Thread
@@ -309,11 +337,16 @@ class FFmpeg:
         else:
             self.pulse_input = _pulse_sink_name + ".monitor"
 
+        if _tmp_file:
+            self.filename = filename + ".tmp.flac"
+        else:
+            self.filename = filename + ".flac"
+
         # self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
         # Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + filename + '.flac"')
+        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + self.filename + '"')
 
         self.pid = str(self.process.pid)
 
@@ -341,6 +374,16 @@ class FFmpeg:
                 self.process.kill()
 
                 log.info("[FFmpeg] [" + self.pid + "] killed")
+            else:
+                if _tmp_file:
+                    tmp_file = os.path.join(_output_directory, self.filename)
+                    new_file = os.path.join(_output_directory,
+                                            self.filename.replace(".tmp.", "."))
+                    if os.path.exists(tmp_file):
+                        shutil.move(tmp_file, new_file)
+                        log.info(f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
+                    else:
+                        log.info(f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
