@@ -45,6 +45,7 @@ _recording_time_after_song = 2.25
 is_script_paused = False
 is_first_playing = True
 
+
 def main():
     handle_command_line()
 
@@ -77,11 +78,12 @@ def main():
     while True:
         time.sleep(1)
 
+
 def doExit():
     log.info("[" + app_name + "] Shutting down ...")
 
     # Stop Spotify DBus listener
-    _spotify.quitGLibLoop()
+    _spotify.quit_glib_loop()
 
     # Disable _tmp_file to not rename the last recording which is uncomplete at this state
     global _tmp_file
@@ -99,6 +101,7 @@ def doExit():
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
     #sys.exit(0)
+
 
 def handle_command_line():
     global _debug_logging
@@ -123,6 +126,7 @@ def handle_command_line():
                                                          "Default: \"" + _filename_pattern + "\"", default=_filename_pattern)
     parser.add_argument("-t", "--tmp-file", help="Use a temporary hidden file during recording and rename it only if the recording has been completed succesfully", action="store_true", default=_tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces", action="store_true", default=_underscored_filenames)
+
     args = parser.parse_args()
 
     _debug_logging = args.debug
@@ -141,6 +145,7 @@ def handle_command_line():
 
     _underscored_filenames = args.underscored_filenames
 
+
 def init_log():
     global log
     log = logging.getLogger()
@@ -155,6 +160,7 @@ def init_log():
     logging.basicConfig(format=FORMAT)
 
     log.debug("Logger initialized")
+
 
 class Spotify:
     dbus_dest = "org.mpris.MediaPlayer2.spotify"
@@ -178,7 +184,7 @@ class Spotify:
         self.trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
         self.playbackstatus = self.iface.Get(self.mpris_player_string, "PlaybackStatus")
 
-        self.iface.connect_to_signal("PropertiesChanged", self.on_playingUriChanged)
+        self.iface.connect_to_signal("PropertiesChanged", self.on_playing_uri_changed)
 
         class DBusListenerThread(Thread):
             def run(self2):
@@ -201,7 +207,7 @@ class Spotify:
     def send_dbus_cmd(self, cmd):
         Shell.run('dbus-send --print-reply --dest=' + self.dbus_dest + ' ' + self.dbus_path + ' ' + self.mpris_player_string + '.' + cmd)
 
-    def quitGLibLoop(self):
+    def quit_glib_loop(self):
         self.glibloop.quit()
 
         log.info("[" + app_name + "] Spotify DBus listener stopped")
@@ -273,13 +279,13 @@ class Spotify:
                     time.sleep(_recording_time_after_song)
 
                     # Stop the recording
-                    instances[0].stopBlocking()
+                    instances[0].stop_blocking()
 
             overhead_recording_stop_thread = OverheadRecordingStopThread()
             overhead_recording_stop_thread.start()
 
     # This gets called whenever Spotify sends the playingUriChanged signal
-    def on_playingUriChanged(self, Player, three, four):
+    def on_playing_uri_changed(self, Player, three, four):
         global iface
         global track
         global home
@@ -334,6 +340,7 @@ class Spotify:
                 if not _no_pa_sink:
                     PulseAudio.move_spotify_to_own_sink()
 
+
 class FFmpeg:
     instances = []
 
@@ -363,7 +370,7 @@ class FFmpeg:
         log.info(f"[FFmpeg] [{self.pid}] Recording started")
 
     # The blocking version of this method waits until the process is dead
-    def stopBlocking(self):
+    def stop_blocking(self):
         # Remove from instances list (and terminate)
         if self in self.instances:
             self.instances.remove(self)
@@ -400,10 +407,10 @@ class FFmpeg:
     def stop(self):
         class KillThread(Thread):
             def run(self2):
-                self.stopBlocking()
+                self.stop_blocking()
 
-        killThread = KillThread()
-        killThread.start()
+        kill_thread = KillThread()
+        kill_thread.start()
 
     @staticmethod
     def killAll():
@@ -411,9 +418,10 @@ class FFmpeg:
 
         # Run as long as list ist not empty
         while FFmpeg.instances:
-            FFmpeg.instances[0].stopBlocking()
+            FFmpeg.instances[0].stop_blocking()
 
         log.info("[FFmpeg] All instances killed")
+
 
 class Shell:
     #TODO: maybe force to use bash?
@@ -441,6 +449,7 @@ class Shell:
     def check_output(cmd):
         out = subprocess.check_output(cmd, shell=True)
         return out.decode()
+
 
 class PulseAudio:
     sink_id = ""
@@ -492,6 +501,7 @@ class PulseAudio:
 
         move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
         move_spotify_to_sink_thread.start()
+
 
 if __name__ == "__main__":
     # Handle exit (not print error when pressing Ctrl^C)
