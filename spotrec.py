@@ -83,6 +83,10 @@ def doExit():
     # Stop Spotify DBus listener
     _spotify.quitGLibLoop()
 
+    # Disable _tmp_file to not rename the latest recording which is uncomplete at this state
+    global _tmp_file
+    _tmp_file = False
+
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
 
