@@ -32,7 +32,7 @@ _skip_intro = False
 _no_pa_sink = False
 _mute_pa_sink = False
 _output_directory = "Audio"
-_filename_pattern = "{artist} - {album} - {track} - {title}"
+_filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = False
 _underscored_filenames = False
 
@@ -115,7 +115,8 @@ def handle_command_line():
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
-                                                         "Default: " + _filename_pattern, default=_filename_pattern)
+                                                         "Available: {artist}, {album}, {trackNumber}, {title}\n"
+                                                         "Default: \"" + _filename_pattern + "\"", default=_filename_pattern)
     parser.add_argument("-t", "--tmp-file", help="Use a temporary file during recording and rename it only if the recording has been completed succesfully", action="store_true", default=_tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces", action="store_true", default=_underscored_filenames)
     args = parser.parse_args()
@@ -210,7 +211,7 @@ class Spotify:
         ret = str(filename_pattern.format(
             artist=metadata.get(dbus.String(u'xesam:artist'))[0],
             album=metadata.get(dbus.String(u'xesam:album')),
-            track=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2),
+            trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2),
             title=metadata.get(dbus.String(u'xesam:title')),
             ))
 
@@ -218,6 +219,7 @@ class Spotify:
             ret = ret.replace(".", "").lower()
             ret = re.sub("[\s\-\[\]()']+", "_", ret)
             ret = re.sub("__+", "__", ret)
+
         return ret
 
     def start_record(self):
@@ -352,7 +354,7 @@ class FFmpeg:
 
         self.instances.append(self)
 
-        log.info("[FFmpeg] [" + self.pid + "] Recording started")
+        log.info(f"[FFmpeg] [{self.pid}] Recording started")
 
     # The blocking version of this method waits until the process is dead
     def stopBlocking(self):
@@ -363,7 +365,7 @@ class FFmpeg:
             # Send CTRL_C
             self.process.terminate()
 
-            log.info("[FFmpeg] [" + self.pid + "] terminated")
+            log.info(f"[FFmpeg] [{self.pid}] terminated")
 
             # Sometimes this is not enough and ffmpeg survives, so we have to kill it after some time
             time.sleep(1)
@@ -373,7 +375,7 @@ class FFmpeg:
 
                 self.process.kill()
 
-                log.info("[FFmpeg] [" + self.pid + "] killed")
+                log.info(f"[FFmpeg] [{self.pid}] killed")
             else:
                 if _tmp_file:
                     tmp_file = os.path.join(_output_directory, self.filename)
@@ -399,13 +401,13 @@ class FFmpeg:
 
     @staticmethod
     def killAll():
-        log.info("[FFmpeg] killing all instances")
+        log.info("[FFmpeg] Killing all instances")
 
         # Run as long as list ist not empty
         while FFmpeg.instances:
             FFmpeg.instances[0].stopBlocking()
 
-        log.info("[FFmpeg] all instances killed")
+        log.info("[FFmpeg] All instances killed")
 
 class Shell:
     #TODO: maybe force to use bash?
