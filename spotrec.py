@@ -24,7 +24,7 @@ import logging
 # 'pulseaudio': sink control stuff
 
 app_name = "SpotRec"
-app_version = "0.6.0"
+app_version = "0.7.0"
 
 # Settings with Defaults
 _debug_logging = False
@@ -83,7 +83,7 @@ def doExit():
     # Stop Spotify DBus listener
     _spotify.quitGLibLoop()
 
-    # Disable _tmp_file to not rename the latest recording which is uncomplete at this state
+    # Disable _tmp_file to not rename the last recording which is uncomplete at this state
     global _tmp_file
     _tmp_file = False
 
