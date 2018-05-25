@@ -45,17 +45,17 @@ pavucontrol
 Pay attention to the red circles, everything else is muted and with volume set
 to 0%
 
-![playback tab](https://github.com/TheJena/SpotRec/raw/master/img/pavucontrol_playback_tab.jpeg)
+![playback tab](https://github.com/Bleuzen/SpotRec/raw/master/img/pavucontrol_playback_tab.jpeg)
 
 Note: actually "Lavf..." will appear after you start playing a song
 
-![recording tab](https://github.com/TheJena/SpotRec/raw/master/img/pavucontrol_recording_tab.jpeg)
+![recording tab](https://github.com/Bleuzen/SpotRec/raw/master/img/pavucontrol_recording_tab.jpeg)
 
-![output devices tab](https://github.com/TheJena/SpotRec/raw/master/img/pavucontrol_output_devices_tab.jpeg)
+![output devices tab](https://github.com/Bleuzen/SpotRec/raw/master/img/pavucontrol_output_devices_tab.jpeg)
 
-![input devices tab](https://github.com/TheJena/SpotRec/raw/master/img/pavucontrol_input_devices_tab.jpeg)
+![input devices tab](https://github.com/Bleuzen/SpotRec/raw/master/img/pavucontrol_input_devices_tab.jpeg)
 
-![configuration tab](https://github.com/TheJena/SpotRec/raw/master/img/pavucontrol_configuration_tab.jpeg)
+![configuration tab](https://github.com/Bleuzen/SpotRec/raw/master/img/pavucontrol_configuration_tab.jpeg)
 
 Finally start playing whatever you want
 
@@ -74,7 +74,7 @@ size=56400kB time=00:00:04.15 bitrate= 130.7kbits/s speed=1x
 ```
 
 * you do not see any "Lavf..." in the pavucontrol
-  [recording tab](https://github.com/TheJena/SpotRec/raw/master/img/pavucontrol_recording_tab.jpeg)
+  [recording tab](https://github.com/Bleuzen/SpotRec/raw/master/img/pavucontrol_recording_tab.jpeg)
 * you get a stacktrace ending with:
 
 ```
