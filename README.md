@@ -13,17 +13,21 @@ If you have a GNU/Linux distribution with a different package manager system,
 you can simply run:
 
 ```
-python3 ./spotrec.py
+python3 spotrec.py
 ```
 
+or
+
+```
+./spotrec.py
+```
 
 
 ### Example
 
-What follows is my favourite configuration, your taste / software / hardware
-might differ...
+First of all run spotify
 
-First of all run spotify, to avoid annoing ads I would recommend you
+Optional: to avoid annoing ads you can use
 [Spotify-AdKiller](https://github.com/SecUpwN/Spotify-AdKiller):
 
 ```
@@ -33,7 +37,7 @@ First of all run spotify, to avoid annoing ads I would recommend you
 Then you can run the python script which will record the music:
 
 ```
-./spotrec.py --debug --mute-sink -o ./my_song_dir --skip-intro --tmp-file --underscored-filenames
+./spotrec.py -o ./my_song_dir --skip-intro --tmp-file
 ```
 
 Check the  pulseaudio configuration:
@@ -62,6 +66,12 @@ Finally start playing whatever you want
 
 
 ## Troubleshooting
+
+Start the script with the debug flag:
+
+```
+./spotrec.py --debug
+```
 
 If one of the following scenarios happens:
 
