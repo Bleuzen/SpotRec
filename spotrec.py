@@ -117,7 +117,7 @@ def handle_command_line():
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"", default=_filename_pattern)
-    parser.add_argument("-t", "--tmp-file", help="Use a temporary file during recording and rename it only if the recording has been completed succesfully", action="store_true", default=_tmp_file)
+    parser.add_argument("-t", "--tmp-file", help="Use a temporary hidden file during recording and rename it only if the recording has been completed succesfully", action="store_true", default=_tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces", action="store_true", default=_underscored_filenames)
     args = parser.parse_args()
 
@@ -340,7 +340,9 @@ class FFmpeg:
             self.pulse_input = _pulse_sink_name + ".monitor"
 
         if _tmp_file:
-            self.filename = filename + ".tmp.flac"
+            # Use a dot as filename prefix to hide the file until the recording was successful
+            self.tmp_file_prefix = "."
+            self.filename = self.tmp_file_prefix + filename + ".flac"
         else:
             self.filename = filename + ".flac"
 
@@ -380,12 +382,12 @@ class FFmpeg:
                 if _tmp_file:
                     tmp_file = os.path.join(_output_directory, self.filename)
                     new_file = os.path.join(_output_directory,
-                                            self.filename.replace(".tmp.", "."))
+                                            self.filename[len(self.tmp_file_prefix):])
                     if os.path.exists(tmp_file):
                         shutil.move(tmp_file, new_file)
-                        log.info(f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
+                        log.debug(f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
                     else:
-                        log.info(f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
+                        log.warning(f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
