@@ -9,8 +9,15 @@ AUR: https://aur.archlinux.org/packages/spotrec/
 
 ## Usage
 
-If you have a GNU/Linux distribution with a different package manager system,
+If you use the AUR package,
 you can simply run:
+
+```
+spotrec
+```
+
+If you have a GNU/Linux distribution with a different package manager system,
+run:
 
 ```
 python3 spotrec.py
