@@ -25,7 +25,7 @@ import logging
 # 'bash': shell commands
 
 app_name = "SpotRec"
-app_version = "0.7.0"
+app_version = "0.7.1"
 
 # Settings with Defaults
 _debug_logging = False
