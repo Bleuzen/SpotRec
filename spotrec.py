@@ -22,6 +22,7 @@ import logging
 # 'ffmpeg'
 # 'gawk': awk in command to get sink input id of spotify
 # 'pulseaudio': sink control stuff
+# 'bash': shell commands
 
 app_name = "SpotRec"
 app_version = "0.7.0"
@@ -40,6 +41,8 @@ _underscored_filenames = False
 _pulse_sink_name = "spotrec"
 _recording_time_before_song = 0.25
 _recording_time_after_song = 2.25
+_shell_executable = "/bin/bash"  # Default: "/bin/sh"
+_shell_encoding = "utf-8"
 
 # Variables that change during runtime
 is_script_paused = False
@@ -424,31 +427,30 @@ class FFmpeg:
 
 
 class Shell:
-    #TODO: maybe force to use bash?
-    #subprocess.check_output(cmd, shell=True, executable="/bin/bash")
-
     @staticmethod
     def run(cmd):
         # 'run()' waits until the process is done
         if _debug_logging:
-            return subprocess.run(cmd, stdin=None, shell=True)
+            return subprocess.run(cmd, stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
         else:
             with open("/dev/null", "w") as devnull:
-                return subprocess.run(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True)
+                return subprocess.run(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True, executable=_shell_executable, encoding=_shell_encoding)
 
     @staticmethod
     def Popen(cmd):
         # 'Popen()' continues running in the background
         if _debug_logging:
-            return subprocess.Popen(cmd, stdin=None, shell=True)
+            return subprocess.Popen(cmd, stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
         else:
             with open("/dev/null", "w") as devnull:
-                return subprocess.Popen(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True)
+                return subprocess.Popen(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True, executable=_shell_executable, encoding=_shell_encoding)
 
     @staticmethod
     def check_output(cmd):
-        out = subprocess.check_output(cmd, shell=True)
-        return out.decode()
+        out = subprocess.check_output(cmd, shell=True, executable=_shell_executable, encoding=_shell_encoding)
+        return out
+        # when not using 'encoding=' -> out.decode()
+        # but since it is set, decode() ist not needed anymore, just return out
 
 
 class PulseAudio:
