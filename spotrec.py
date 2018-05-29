@@ -364,7 +364,7 @@ class FFmpeg:
         # Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -i ' + self.pulse_input + ' -ac 2 -ar 44100 -acodec flac "' + _output_directory + "/" + self.filename + '"')
+        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
 
         self.pid = str(self.process.pid)
 
