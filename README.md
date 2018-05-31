@@ -71,6 +71,12 @@ Note: actually "Lavf..." will appear after you start playing a song
 Finally start playing whatever you want
 
 
+## Hints
+
+- Disable volume normalization in the Spotify Client
+
+- Use Audacity for post processing
+
 
 ## Troubleshooting
 
