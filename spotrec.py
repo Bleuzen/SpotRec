@@ -84,7 +84,7 @@ def main():
 
 
 def doExit():
-    log.info("[" + app_name + "] Shutting down ...")
+    log.info(f"[{app_name}] Shutting down ...")
 
     # Stop Spotify DBus listener
     _spotify.quit_glib_loop()
@@ -100,7 +100,7 @@ def doExit():
     if not _no_pa_sink:
         PulseAudio.unload_sink()
 
-    log.info("[" + app_name + "] Bye")
+    log.info(f"[{app_name}] Bye")
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
@@ -201,15 +201,15 @@ class Spotify:
                 self.glibloop.run()
 
                 # run() blocks this thread. This gets printed after it's dead.
-                log.info("[" + app_name + "] GLib Loop thread killed")
+                log.info(f"[{app_name}] GLib Loop thread killed")
 
         dbuslistener = DBusListenerThread()
         dbuslistener.start()
 
-        log.info("[" + app_name + "] Spotify DBus listener started")
+        log.info(f"[{app_name}] Spotify DBus listener started")
 
-        log.info("[" + app_name + "] Current song: " + self.track)
-        log.info("[" + app_name + "] Current state: " + self.playbackstatus)
+        log.info(f"[{app_name}] Current song: " + self.track)
+        log.info(f"[{app_name}] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
     def send_dbus_cmd(self, cmd):
@@ -218,7 +218,7 @@ class Spotify:
     def quit_glib_loop(self):
         self.glibloop.quit()
 
-        log.info("[" + app_name + "] Spotify DBus listener stopped")
+        log.info(f"[{app_name}] Spotify DBus listener stopped")
 
     def get_track(self, metadata):
         if _underscored_filenames:
@@ -262,7 +262,7 @@ class Spotify:
 
                 # Spotify pauses when the playlist ended. Don't start a recording / return in this case.
                 if not self.is_playing:
-                    log.info("[" + app_name + "] Spotify is paused. Maybe the current album or playlist has ended.")
+                    log.info(f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
 
                     # TODO: do we need it anymore?
                     if not is_script_paused:
@@ -270,7 +270,7 @@ class Spotify:
 
                     return
 
-                log.info("[" + app_name + "] Starting recording")
+                log.info(f"[{app_name}] Starting recording")
 
                 # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
                 is_script_paused = True
@@ -473,7 +473,7 @@ class PulseAudio:
 
     @staticmethod
     def load_sink():
-        log.info("[" + app_name + "] Creating pulse sink")
+        log.info(f"[{app_name}] Creating pulse sink")
 
         if _mute_pa_sink:
             PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
@@ -484,7 +484,7 @@ class PulseAudio:
 
     @staticmethod
     def unload_sink():
-        log.info("[" + app_name + "] Unloading pulse sink")
+        log.info(f"[{app_name}] Unloading pulse sink")
         Shell.run('pactl unload-module ' + PulseAudio.sink_id)
 
     @staticmethod
@@ -512,9 +512,9 @@ class PulseAudio:
                     exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
 
                     if exit_code == 0:
-                        log.info("[" + app_name + "] Moved Spotify to own sink")
+                        log.info(f"[{app_name}] Moved Spotify to own sink")
                     else:
-                        log.warning("[" + app_name + "] Failed to move Spotify to own sink")
+                        log.warning(f"[{app_name}] Failed to move Spotify to own sink")
 
         move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
         move_spotify_to_sink_thread.start()
