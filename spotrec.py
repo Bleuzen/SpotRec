@@ -56,6 +56,7 @@ def main():
     if not _skip_intro:
         print(app_name + " v" + app_version)
         print("This is an very early and experimental version. Expect some bugs ;)")
+        print("You should not pause or seek during a recording!")
         print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
         print('Use --help as argument to see all options.')
         print()
