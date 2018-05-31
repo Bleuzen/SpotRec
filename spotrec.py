@@ -41,6 +41,7 @@ _underscored_filenames = False
 _pulse_sink_name = "spotrec"
 _recording_time_before_song = 0.25
 _recording_time_after_song = 2.25
+_playback_time_before_seeking_to_beginning = 4.5
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
 
@@ -170,6 +171,9 @@ class Spotify:
     dbus_path = "/org/mpris/MediaPlayer2"
     mpris_player_string = "org.mpris.MediaPlayer2.Player"
 
+    playbackstatus_playing = "Playing"
+    playbackstatus_paused = "Paused"
+
     def __init__(self):
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
@@ -186,6 +190,7 @@ class Spotify:
         self.track = self.get_track(self.metadata)
         self.trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
         self.playbackstatus = self.iface.Get(self.mpris_player_string, "PlaybackStatus")
+        self.is_playing = (self.playbackstatus == self.playbackstatus_playing)
 
         self.iface.connect_to_signal("PropertiesChanged", self.on_playing_uri_changed)
 
@@ -239,6 +244,8 @@ class Spotify:
         # Start new recording in new Thread
         class RecordThread(Thread):
             def run(self2):
+                global is_script_paused
+
                 # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
                 self2.trackid_when_thread_started = self.trackid
 
@@ -247,28 +254,40 @@ class Spotify:
                 self.stop_old_recording(FFmpeg.instances.copy())
 
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
-                time.sleep(4.5)
-                # Check if still the same song is playing
-                if self2.trackid_when_thread_started == self.trackid:
-                    log.info("[" + app_name + "] Starting recording")
+                time.sleep(_playback_time_before_seeking_to_beginning)
 
-                    global is_script_paused
-                    # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
-                    is_script_paused = True
-                    self.send_dbus_cmd("Pause")
-                    time.sleep(0.5)
-                    is_script_paused = False
-                    self.send_dbus_cmd("Previous")
+                # Check if still the same song is still playing, return if not
+                if self2.trackid_when_thread_started != self.trackid:
+                    return
 
-                    # Start FFmpeg recording
-                    ff = FFmpeg()
-                    ff.record(self.track)
+                # Spotify pauses when the playlist ended. Don't start a recording / return in this case.
+                if not self.is_playing:
+                    log.info("[" + app_name + "] Spotify is paused. Maybe the current album or playlist has ended.")
 
-                    # Give FFmpeg some time to start up before starting the song
-                    time.sleep(_recording_time_before_song)
+                    # TODO: do we need it anymore?
+                    if not is_script_paused:
+                        doExit()
 
-                    # Play the track
-                    self.send_dbus_cmd("Play")
+                    return
+
+                log.info("[" + app_name + "] Starting recording")
+
+                # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
+                is_script_paused = True
+                self.send_dbus_cmd("Pause")
+                time.sleep(0.25)
+                is_script_paused = False
+                self.send_dbus_cmd("Previous")
+
+                # Start FFmpeg recording
+                ff = FFmpeg()
+                ff.record(self.track)
+
+                # Give FFmpeg some time to start up before starting the song
+                time.sleep(_recording_time_before_song)
+
+                # Play the track
+                self.send_dbus_cmd("Play")
 
         record_thread = RecordThread()
         record_thread.start()
@@ -317,6 +336,7 @@ class Spotify:
 
         if self.playbackstatus != self.playbackstatus2:
             self.playbackstatus = self.playbackstatus2
+            self.is_playing = (self.playbackstatus == self.playbackstatus_playing)
 
             self.playbackstatus_changed()
 
@@ -327,11 +347,6 @@ class Spotify:
 
     def playbackstatus_changed(self):
         log.info("[Spotify] State changed: " + self.playbackstatus)
-
-        if self.playbackstatus == "Paused":
-            if not is_script_paused:
-                log.info("[" + app_name + "] You paused Spotify playback (or the playlist / album is over)")
-                doExit()
 
         self.try_to_move_to_sink_if_needed()
 
