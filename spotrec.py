@@ -477,9 +477,9 @@ class PulseAudio:
         log.info(f"[{app_name}] Creating pulse sink")
 
         if _mute_pa_sink:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pulse_sink_name + '" sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
         else:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name=' + _pulse_sink_name + ' sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2 remix=no')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pulse_sink_name + '" sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2 remix=no')
             # To use another master sink where to play:
             # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
