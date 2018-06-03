@@ -464,9 +464,10 @@ class Shell:
     @staticmethod
     def check_output(cmd):
         out = subprocess.check_output(cmd, shell=True, executable=_shell_executable, encoding=_shell_encoding)
-        return out
         # when not using 'encoding=' -> out.decode()
-        # but since it is set, decode() ist not needed anymore, just return out
+        # but since it is set, decode() ist not needed anymore
+        #out = out.decode()
+        return out.rstrip('\n')
 
 
 class PulseAudio:
