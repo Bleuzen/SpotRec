@@ -75,7 +75,11 @@ Finally start playing whatever you want
 
 - Disable volume normalization in the Spotify Client
 
+- Do not change the volume during recording
+
 - Use Audacity for post processing
+
+  * because SpotRec records a little longer at the end to ensure that nothing is missing of the song. But sometimes this also includes the beginning of the next song. So you should use Audacity to cut the audio to what you want. From Audacity you can also export it to the format you like (ogg/mp3/...).
 
 
 ## Troubleshooting
