@@ -447,23 +447,23 @@ class Shell:
     def run(cmd):
         # 'run()' waits until the process is done
         if _debug_logging:
-            return subprocess.run(cmd, stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
+            return subprocess.run(cmd.encode(_shell_encoding), stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
         else:
             with open("/dev/null", "w") as devnull:
-                return subprocess.run(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True, executable=_shell_executable, encoding=_shell_encoding)
+                return subprocess.run(cmd.encode(_shell_encoding), stdin=None, stdout=devnull, stderr=devnull, shell=True, executable=_shell_executable, encoding=_shell_encoding)
 
     @staticmethod
     def Popen(cmd):
         # 'Popen()' continues running in the background
         if _debug_logging:
-            return subprocess.Popen(cmd, stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
+            return subprocess.Popen(cmd.encode(_shell_encoding), stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
         else:
             with open("/dev/null", "w") as devnull:
-                return subprocess.Popen(cmd, stdin=None, stdout=devnull, stderr=devnull, shell=True, executable=_shell_executable, encoding=_shell_encoding)
+                return subprocess.Popen(cmd.encode(_shell_encoding), stdin=None, stdout=devnull, stderr=devnull, shell=True, executable=_shell_executable, encoding=_shell_encoding)
 
     @staticmethod
     def check_output(cmd):
-        out = subprocess.check_output(cmd, shell=True, executable=_shell_executable, encoding=_shell_encoding)
+        out = subprocess.check_output(cmd.encode(_shell_encoding), shell=True, executable=_shell_executable, encoding=_shell_encoding)
         # when not using 'encoding=' -> out.decode()
         # but since it is set, decode() ist not needed anymore
         #out = out.decode()
