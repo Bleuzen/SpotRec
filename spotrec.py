@@ -492,13 +492,13 @@ class PulseAudio:
     @staticmethod
     def get_spotify_sink_input_id():
         application_name = "spotify"
-        cmdout = Shell.check_output("pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $2} /application.name = \"" + application_name + "\"/ {print $3};'")
+        cmdout = Shell.check_output("pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $0} /application.name = \"" + application_name + "\"/ {print $3};'")
         index = -1
         last = -1
 
         for line in cmdout.split('\n'):
             if line == '"' + application_name + '"':
-                index = last[1:]
+                index = last.split(" #",1)[1]
                 break
             last = line
 
