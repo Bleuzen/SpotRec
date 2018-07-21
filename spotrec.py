@@ -494,7 +494,7 @@ class PulseAudio:
         application_name = "spotify"
         cmdout = Shell.check_output("pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $0} /application.name = \"" + application_name + "\"/ {print $3};'")
         index = -1
-        last = -1
+        last = ""
 
         for line in cmdout.split('\n'):
             if line == '"' + application_name + '"':
@@ -502,13 +502,13 @@ class PulseAudio:
                 break
             last = line
 
-        return index
+        return int(index)
 
     @staticmethod
     def move_spotify_to_own_sink():
         class MoveSpotifyToSinktThread(Thread):
             def run(self):
-                spotify_id = int(PulseAudio.get_spotify_sink_input_id())
+                spotify_id = PulseAudio.get_spotify_sink_input_id()
 
                 if spotify_id > -1:
                     exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
