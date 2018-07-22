@@ -48,6 +48,7 @@ _shell_encoding = "utf-8"
 # Variables that change during runtime
 is_script_paused = False
 is_first_playing = True
+pa_spotify_sink_input_id = -1
 
 
 def main():
@@ -56,7 +57,7 @@ def main():
     if not _skip_intro:
         print(app_name + " v" + app_version)
         print("This is an very early and experimental version. Expect some bugs ;)")
-        print("You should not pause or seek during a recording!")
+        print("You should not pause, seek or change volume during recording!")
         print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
         print('Use --help as argument to see all options.')
         print()
@@ -77,7 +78,7 @@ def main():
     if not _no_pa_sink:
         PulseAudio.load_sink()
 
-    _spotify.try_to_move_to_sink_if_needed()
+    _spotify.init_pa_stuff_if_needed()
 
     # Keep the main thread alive (to be able to handle KeyboardInterrupt)
     while True:
@@ -241,6 +242,9 @@ class Spotify:
 
         return ret
 
+    def is_playing(self):
+        return self.playbackstatus == "Playing"
+
     def start_record(self):
         # Start new recording in new Thread
         class RecordThread(Thread):
@@ -349,13 +353,17 @@ class Spotify:
     def playbackstatus_changed(self):
         log.info("[Spotify] State changed: " + self.playbackstatus)
 
-        self.try_to_move_to_sink_if_needed()
+        self.init_pa_stuff_if_needed()
 
-    def try_to_move_to_sink_if_needed(self):
-        if self.playbackstatus == "Playing":
+    def init_pa_stuff_if_needed(self):
+        if self.is_playing:
             global is_first_playing
             if is_first_playing:
                 is_first_playing = False
+                log.debug(f"[{app_name}] Initializing PulseAudio stuff")
+
+                PulseAudio.init_spotify_sink_input_id()
+
                 if not _no_pa_sink:
                     PulseAudio.move_spotify_to_own_sink()
 
@@ -490,7 +498,12 @@ class PulseAudio:
         Shell.run('pactl unload-module ' + PulseAudio.sink_id)
 
     @staticmethod
-    def get_spotify_sink_input_id():
+    def init_spotify_sink_input_id():
+        global pa_spotify_sink_input_id
+
+        if pa_spotify_sink_input_id > -1:
+            return
+
         application_name = "spotify"
         cmdout = Shell.check_output("pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $0} /application.name = \"" + application_name + "\"/ {print $3};'")
         index = -1
@@ -502,16 +515,17 @@ class PulseAudio:
                 break
             last = line
 
-        return int(index)
+        # Alternative command:
+        # for i in $(LC_ALL=C pactl list | grep -E '(^Sink Input)|(media.name = \"Spotify\"$)' | cut -d \# -f2 | grep -v Spotify); do echo "$i"; done
+
+        pa_spotify_sink_input_id = int(index)
 
     @staticmethod
     def move_spotify_to_own_sink():
         class MoveSpotifyToSinktThread(Thread):
             def run(self):
-                spotify_id = PulseAudio.get_spotify_sink_input_id()
-
-                if spotify_id > -1:
-                    exit_code = Shell.run("pactl move-sink-input " + str(spotify_id) + " " + _pulse_sink_name).returncode
+                if pa_spotify_sink_input_id > -1:
+                    exit_code = Shell.run("pactl move-sink-input " + str(pa_spotify_sink_input_id) + " " + _pulse_sink_name).returncode
 
                     if exit_code == 0:
                         log.info(f"[{app_name}] Moved Spotify to own sink")
