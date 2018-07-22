@@ -38,7 +38,8 @@ _tmp_file = False
 _underscored_filenames = False
 
 # Hard-coded settings
-_pulse_sink_name = "spotrec"
+_pa_recording_sink_name = "spotrec"
+_pa_max_volume = "65536"
 _recording_time_before_song = 0.25
 _recording_time_after_song = 2.25
 _playback_time_before_seeking_to_beginning = 4.5
@@ -363,6 +364,7 @@ class Spotify:
                 log.debug(f"[{app_name}] Initializing PulseAudio stuff")
 
                 PulseAudio.init_spotify_sink_input_id()
+                PulseAudio.set_sink_volumes_to_100()
 
                 if not _no_pa_sink:
                     PulseAudio.move_spotify_to_own_sink()
@@ -375,7 +377,7 @@ class FFmpeg:
         if _no_pa_sink:
             self.pulse_input = "default"
         else:
-            self.pulse_input = _pulse_sink_name + ".monitor"
+            self.pulse_input = _pa_recording_sink_name + ".monitor"
 
         if _tmp_file:
             # Use a dot as filename prefix to hide the file until the recording was successful
@@ -486,9 +488,9 @@ class PulseAudio:
         log.info(f"[{app_name}] Creating pulse sink")
 
         if _mute_pa_sink:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pulse_sink_name + '" sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pa_recording_sink_name + '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2')
         else:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pulse_sink_name + '" sink_properties=device.description="' + _pulse_sink_name + '" rate=44100 channels=2 remix=no')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pa_recording_sink_name + '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2 remix=no')
             # To use another master sink where to play:
             # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
@@ -525,7 +527,7 @@ class PulseAudio:
         class MoveSpotifyToSinktThread(Thread):
             def run(self):
                 if pa_spotify_sink_input_id > -1:
-                    exit_code = Shell.run("pactl move-sink-input " + str(pa_spotify_sink_input_id) + " " + _pulse_sink_name).returncode
+                    exit_code = Shell.run("pactl move-sink-input " + str(pa_spotify_sink_input_id) + " " + _pa_recording_sink_name).returncode
 
                     if exit_code == 0:
                         log.info(f"[{app_name}] Moved Spotify to own sink")
@@ -534,6 +536,17 @@ class PulseAudio:
 
         move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
         move_spotify_to_sink_thread.start()
+
+    @staticmethod
+    def set_sink_volumes_to_100():
+        log.debug(f"[{app_name}] Set sink volumes to 100%")
+
+        # Set Spotify volume to 100%
+        Shell.Popen("pactl set-sink-input-volume " + str(pa_spotify_sink_input_id) + " " + _pa_max_volume)
+
+        # Set recording sink volume to 100%
+        if not _no_pa_sink:
+            Shell.Popen("pactl set-sink-volume " + _pa_recording_sink_name + " " + _pa_max_volume)
 
 
 if __name__ == "__main__":
