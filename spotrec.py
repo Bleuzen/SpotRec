@@ -25,7 +25,7 @@ import logging
 # 'bash': shell commands
 
 app_name = "SpotRec"
-app_version = "0.9.0"
+app_version = "0.10.0"
 
 # Settings with Defaults
 _debug_logging = False
@@ -184,7 +184,7 @@ class Spotify:
             bus = dbus.SessionBus()
             player = bus.get_object(self.dbus_dest, self.dbus_path)
             self.iface = dbus.Interface(player, "org.freedesktop.DBus.Properties")
-            self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
+            self.update_metadata()
         except DBusException as e:
             log.error("Failed to connect to Spotify. (Maybe it's not running yet?)")
             sys.exit(1)
@@ -225,10 +225,10 @@ class Spotify:
 
     def get_metadata_for_ffmpeg(self, metadata):
         return {
-            "artist": ", ".join(metadata.get(dbus.String(u'xesam:artist'))),
-            "album": str(metadata.get(dbus.String(u'xesam:album'))),
-            "track": str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2),
-            "title": str(metadata.get(dbus.String(u'xesam:title'))),
+            "artist": self.metadata_artist,
+            "album": self.metadata_album,
+            "track": self.metadata_trackNumber,
+            "title": self.metadata_title
         }
 
     def get_track(self, metadata):
@@ -238,10 +238,10 @@ class Spotify:
             filename_pattern = _filename_pattern
 
         ret = str(filename_pattern.format(
-            artist=metadata.get(dbus.String(u'xesam:artist'))[0],
-            album=metadata.get(dbus.String(u'xesam:album')),
-            trackNumber=str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2),
-            title=metadata.get(dbus.String(u'xesam:title')),
+            artist=self.metadata_artist,
+            album=self.metadata_artist,
+            trackNumber=self.metadata_trackNumber,
+            title=self.metadata_title
             ))
 
         if _underscored_filenames:
@@ -278,7 +278,7 @@ class Spotify:
                 if not self.is_playing:
                     log.info(f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
 
-                    # TODO: needed?
+                    # Exit after playlist recorded
                     if not is_script_paused:
                         doExit()
 
@@ -329,7 +329,7 @@ class Spotify:
         #log.debug("uri changed event")
 
         # Update Metadata
-        self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
+        self.update_metadata()
 
         # Update track & trackid
 
@@ -363,6 +363,14 @@ class Spotify:
         log.info("[Spotify] State changed: " + self.playbackstatus)
 
         self.init_pa_stuff_if_needed()
+
+    def update_metadata(self):
+        self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
+
+        self.metadata_artist = ", ".join(self.metadata.get(dbus.String(u'xesam:artist')))
+        self.metadata_album = self.metadata.get(dbus.String(u'xesam:album'))
+        self.metadata_trackNumber = str(self.metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2)
+        self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
 
     def init_pa_stuff_if_needed(self):
         if self.is_playing:
