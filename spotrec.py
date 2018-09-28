@@ -57,9 +57,8 @@ def main():
 
     if not _skip_intro:
         print(app_name + " v" + app_version)
-        print("This is an very early and experimental version. Expect some bugs ;)")
         print("You should not pause, seek or change volume during recording!")
-        print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden.')
+        print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden!')
         print('Use --help as argument to see all options.')
         print()
         print("Disclaimer:")
@@ -278,7 +277,7 @@ class Spotify:
                 if not self.is_playing:
                     log.info(f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
 
-                    # TODO: do we need it anymore?
+                    # TODO: needed?
                     if not is_script_paused:
                         doExit()
 
@@ -399,8 +398,7 @@ class FFmpeg:
         for key, value in metadata_for_file.items():
             metadata_params += ' -metadata ' + key + '="' + value.replace('"', '\\"') + '"'
 
-        # self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
-        # Options:
+        # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
         self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
@@ -469,6 +467,7 @@ class Shell:
     @staticmethod
     def run(cmd):
         # 'run()' waits until the process is done
+        log.debug(f"[Shell] run: {cmd}")
         if _debug_logging:
             return subprocess.run(cmd.encode(_shell_encoding), stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
         else:
@@ -478,6 +477,7 @@ class Shell:
     @staticmethod
     def Popen(cmd):
         # 'Popen()' continues running in the background
+        log.debug(f"[Shell] Popen: {cmd}")
         if _debug_logging:
             return subprocess.Popen(cmd.encode(_shell_encoding), stdin=None, shell=True, executable=_shell_executable, encoding=_shell_encoding)
         else:
@@ -486,6 +486,7 @@ class Shell:
 
     @staticmethod
     def check_output(cmd):
+        log.debug(f"[Shell] check_output: {cmd}")
         out = subprocess.check_output(cmd.encode(_shell_encoding), shell=True, executable=_shell_executable, encoding=_shell_encoding)
         # when not using 'encoding=' -> out.decode()
         # but since it is set, decode() ist not needed anymore
