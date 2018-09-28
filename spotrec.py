@@ -223,6 +223,14 @@ class Spotify:
 
         log.info(f"[{app_name}] Spotify DBus listener stopped")
 
+    def get_metadata_for_ffmpeg(self, metadata):
+        return {
+            "artist": ", ".join(metadata.get(dbus.String(u'xesam:artist'))),
+            "album": str(metadata.get(dbus.String(u'xesam:album'))),
+            "track": str(metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2),
+            "title": str(metadata.get(dbus.String(u'xesam:title'))),
+        }
+
     def get_track(self, metadata):
         if _underscored_filenames:
             filename_pattern = re.sub(" - ", "__", _filename_pattern)
@@ -287,7 +295,7 @@ class Spotify:
 
                 # Start FFmpeg recording
                 ff = FFmpeg()
-                ff.record(self.track)
+                ff.record(self.track, self.get_metadata_for_ffmpeg(self.metadata))
 
                 # Give FFmpeg some time to start up before starting the song
                 time.sleep(_recording_time_before_song)
@@ -373,7 +381,7 @@ class Spotify:
 class FFmpeg:
     instances = []
 
-    def record(self, filename):
+    def record(self, filename, metadata_for_file = {}):
         if _no_pa_sink:
             self.pulse_input = "default"
         else:
@@ -386,11 +394,16 @@ class FFmpeg:
         else:
             self.filename = filename + ".flac"
 
+        # build metadata param
+        metadata_params = ''
+        for key, value in metadata_for_file.items():
+            metadata_params += ' -metadata ' + key + '="' + value.replace('"', '\\"') + '"'
+
         # self.process = Shell.Popen('ffmpeg -y -f alsa -ac 2 -ar 44100 -i pulse -acodec flac "' + _output_directory + "/" + filename + '.flac"')
         # Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
+        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
 
         self.pid = str(self.process.pid)
 
