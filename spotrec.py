@@ -45,6 +45,7 @@ _recording_time_after_song = 2.25
 _playback_time_before_seeking_to_beginning = 4.5
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
+_ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
 
 # Variables that change during runtime
 is_script_paused = False
@@ -401,7 +402,7 @@ class FFmpeg:
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-        self.process = Shell.Popen('ffmpeg -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
+        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
 
         self.pid = str(self.process.pid)
 
