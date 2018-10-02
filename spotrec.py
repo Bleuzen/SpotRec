@@ -25,7 +25,7 @@ import logging
 # 'bash': shell commands
 
 app_name = "SpotRec"
-app_version = "0.10.0"
+app_version = "0.11.0"
 
 # Settings with Defaults
 _debug_logging = False
@@ -193,7 +193,6 @@ class Spotify:
         self.track = self.get_track(self.metadata)
         self.trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
         self.playbackstatus = self.iface.Get(self.mpris_player_string, "PlaybackStatus")
-        self.is_playing = (self.playbackstatus == self.playbackstatus_playing)
 
         self.iface.connect_to_signal("PropertiesChanged", self.on_playing_uri_changed)
 
@@ -275,7 +274,7 @@ class Spotify:
                     return
 
                 # Spotify pauses when the playlist ended. Don't start a recording / return in this case.
-                if not self.is_playing:
+                if not self.is_playing():
                     log.info(f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
 
                     # Exit after playlist recorded
@@ -350,7 +349,6 @@ class Spotify:
 
         if self.playbackstatus != self.playbackstatus2:
             self.playbackstatus = self.playbackstatus2
-            self.is_playing = (self.playbackstatus == self.playbackstatus_playing)
 
             self.playbackstatus_changed()
 
@@ -373,7 +371,7 @@ class Spotify:
         self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
 
     def init_pa_stuff_if_needed(self):
-        if self.is_playing:
+        if self.is_playing():
             global is_first_playing
             if is_first_playing:
                 is_first_playing = False

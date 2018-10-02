@@ -23,11 +23,6 @@ run:
 python3 spotrec.py
 ```
 
-or
-
-```
-./spotrec.py
-```
 
 
 ### Example
