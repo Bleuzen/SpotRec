@@ -107,5 +107,9 @@ venv.bak/
 *.bin
 *.build
 
+# Dist files
+*.dist
+*.tar.gz
+
 # Default recording directory
 Audio
