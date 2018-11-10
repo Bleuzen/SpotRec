@@ -15,6 +15,7 @@ import os
 import argparse
 import traceback
 import logging
+import shlex
 
 # Deps:
 # 'python'
@@ -403,12 +404,12 @@ class FFmpeg:
         # build metadata param
         metadata_params = ''
         for key, value in metadata_for_file.items():
-            metadata_params += ' -metadata ' + key + '="' + value.replace('"', '\\"') + '"'
+            metadata_params += ' -metadata ' + key + '=' + shlex.quote(value)
 
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac "' + _output_directory + "/" + self.filename + '"')
+        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac ' + shlex.quote(_output_directory + "/" + self.filename))
 
         self.pid = str(self.process.pid)
 
