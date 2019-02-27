@@ -397,9 +397,11 @@ class FFmpeg:
         if _tmp_file:
             # Use a dot as filename prefix to hide the file until the recording was successful
             self.tmp_file_prefix = "."
-            self.filename = (self.tmp_file_prefix + filename + ".flac").replace("/", "")
+            self.filename = self.tmp_file_prefix + filename + ".flac"
         else:
-            self.filename = (filename + ".flac").replace("/", "")
+            self.filename = filename + ".flac"
+        # Fix for filenames containing '/'
+        self.filename = self.filename.replace("/", "_")
 
         # build metadata param
         metadata_params = ''
