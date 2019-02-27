@@ -107,6 +107,9 @@ venv.bak/
 *.bin
 *.build
 
+# Binary
+spotrec
+
 # Dist files
 *.dist
 *.tar.gz
