@@ -18,6 +18,8 @@ fi
 # Remove bin directory
 rm -r spotrec.build/
 
+# Rename binary
+mv spotrec.bin spotrec
 
 echo "SHA256SUM:"
-echo $(sha256sum spotrec.bin)
+echo $(sha256sum spotrec)
