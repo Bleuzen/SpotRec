@@ -190,7 +190,7 @@ class Spotify:
             player = bus.get_object(self.dbus_dest, self.dbus_path)
             self.iface = dbus.Interface(player, "org.freedesktop.DBus.Properties")
             self.update_metadata()
-        except DBusException as e:
+        except DBusException:
             log.error("Failed to connect to Spotify. (Maybe it's not running yet?)")
             sys.exit(1)
             pass
