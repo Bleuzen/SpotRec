@@ -326,10 +326,6 @@ class Spotify:
 
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playing_uri_changed(self, Player, three, four):
-        global iface
-        global track
-        global home
-
         #log.debug("uri changed event")
 
         # Update Metadata
@@ -347,8 +343,6 @@ class Spotify:
             self.playing_song_changed()
 
         # Update playback status
-
-        global playbackstatus
 
         self.playbackstatus2 = self.iface.Get(Player, "PlaybackStatus")
 
