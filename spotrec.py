@@ -288,6 +288,11 @@ class Spotify:
 
                     return
 
+                # Do not record ads
+                if self.trackid.startswith("spotify:ad:"):
+                    log.debug(f"[{app_name}] Skipping ad")
+                    return
+
                 log.info(f"[{app_name}] Starting recording")
 
                 # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
