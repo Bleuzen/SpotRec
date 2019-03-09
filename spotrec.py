@@ -4,6 +4,7 @@ import dbus
 from dbus.exceptions import DBusException
 import dbus.mainloop.glib
 from gi.repository import GLib
+from pathlib import Path
 
 from threading import Thread
 import subprocess
@@ -33,7 +34,7 @@ _debug_logging = False
 _skip_intro = False
 _no_pa_sink = False
 _mute_pa_sink = False
-_output_directory = "Audio"
+_output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = False
 _underscored_filenames = False
@@ -60,11 +61,14 @@ def main():
     if not _skip_intro:
         print(app_name + " v" + app_version)
         print("You should not pause, seek or change volume during recording!")
-        print('Recordings are save to a directory called "Audio" in your current working directory by default. Existing files will be overridden!')
-        print('Use --help as argument to see all options.')
+        print("Existing files will be overridden!")
+        print("Use --help as argument to see all options.")
         print()
         print("Disclaimer:")
         print('This software is for "educational" purposes only. No responsibility is held or accepted for misuse.')
+        print()
+        print("Output directory:")
+        print(_output_directory)
         print()
 
     init_log()
