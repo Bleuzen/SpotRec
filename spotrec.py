@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+# License: https://raw.githubusercontent.com/Bleuzen/SpotRec/master/LICENSE
+
 import dbus
 from dbus.exceptions import DBusException
 import dbus.mainloop.glib
