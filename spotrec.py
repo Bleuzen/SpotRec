@@ -36,7 +36,7 @@ _no_pa_sink = False
 _mute_pa_sink = False
 _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
-_tmp_file = False
+_tmp_file = True
 _underscored_filenames = False
 
 # Hard-coded settings
@@ -136,7 +136,7 @@ def handle_command_line():
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"", default=_filename_pattern)
-    parser.add_argument("-t", "--tmp-file", help="Use a temporary hidden file during recording and rename it only if the recording has been completed succesfully", action="store_true", default=_tmp_file)
+    parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording", action="store_true", default= not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces", action="store_true", default=_underscored_filenames)
 
     args = parser.parse_args()
@@ -153,7 +153,7 @@ def handle_command_line():
 
     _output_directory = args.output_directory
 
-    _tmp_file = args.tmp_file
+    _tmp_file = not args.no_tmp_file
 
     _underscored_filenames = args.underscored_filenames
 
