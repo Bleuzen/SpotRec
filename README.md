@@ -27,14 +27,7 @@ python3 spotrec.py
 
 ### Example
 
-First of all run spotify
-
-Optional: to avoid annoing ads you can use
-[Spotify-AdKiller](https://github.com/SecUpwN/Spotify-AdKiller):
-
-```
-./spotify-wrapper.sh
-```
+First of all run spotify.
 
 Then you can run the python script which will record the music:
 
