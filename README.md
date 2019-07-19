@@ -32,7 +32,7 @@ First of all run spotify.
 Then you can run the python script which will record the music:
 
 ```
-./spotrec.py -o ./my_song_dir --skip-intro --tmp-file
+./spotrec.py -o ./my_song_dir --skip-intro
 ```
 
 Check the  pulseaudio configuration:
