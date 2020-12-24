@@ -203,7 +203,7 @@ class Spotify:
             self.iface = dbus.Interface(player, "org.freedesktop.DBus.Properties")
             self.update_metadata()
         except DBusException:
-            log.error("Failed to connect to Spotify. (Maybe it's not running yet?)")
+            log.error(f"Error: Could not connect to the Spotify Client. It has to be running first before starting {app_name}.")
             sys.exit(1)
             pass
 
