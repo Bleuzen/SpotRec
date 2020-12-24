@@ -34,8 +34,7 @@ app_version = "0.12.0"
 # Settings with Defaults
 _debug_logging = False
 _skip_intro = False
-_no_pa_sink = False
-_mute_pa_sink = False
+_mute_pa_recording_sink = False
 _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
@@ -82,9 +81,8 @@ def main():
     global _spotify
     _spotify = Spotify()
 
-    # Load PulseAudio sink if wanted
-    if not _no_pa_sink:
-        PulseAudio.load_sink()
+    # Load PulseAudio sink
+    PulseAudio.load_sink()
 
     _spotify.init_pa_stuff_if_needed()
 
@@ -106,9 +104,8 @@ def doExit():
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
 
-    # Unload PulseAudio sink if it was loaded
-    if not _no_pa_sink:
-        PulseAudio.unload_sink()
+    # Unload PulseAudio sink
+    PulseAudio.unload_sink()
 
     log.info(f"[{app_name}] Bye")
 
@@ -120,8 +117,7 @@ def doExit():
 def handle_command_line():
     global _debug_logging
     global _skip_intro
-    global _no_pa_sink
-    global _mute_pa_sink
+    global _mute_pa_recording_sink
     global _output_directory
     global _filename_pattern
     global _tmp_file
@@ -131,8 +127,7 @@ def handle_command_line():
     parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print a little more", action="store_true", default=_debug_logging)
     parser.add_argument("-s", "--skip-intro", help="Skip the intro message", action="store_true", default=_skip_intro)
-    parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
-    parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
+    parser.add_argument("-m", "--mute-recording", help="Mute Spotify on your main output device while recording", action="store_true", default=_mute_pa_recording_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
@@ -147,9 +142,7 @@ def handle_command_line():
 
     _skip_intro = args.skip_intro
 
-    _no_pa_sink = args.no_sink
-
-    _mute_pa_sink = args.mute_sink
+    _mute_pa_recording_sink = args.mute_recording
 
     _filename_pattern = args.filename_pattern
 
@@ -386,18 +379,14 @@ class Spotify:
                 PulseAudio.init_spotify_sink_input_id()
                 PulseAudio.set_sink_volumes_to_100()
 
-                if not _no_pa_sink:
-                    PulseAudio.move_spotify_to_own_sink()
+                PulseAudio.move_spotify_to_own_sink()
 
 
 class FFmpeg:
     instances = []
 
     def record(self, filename, metadata_for_file = {}):
-        if _no_pa_sink:
-            self.pulse_input = "default"
-        else:
-            self.pulse_input = _pa_recording_sink_name + ".monitor"
+        self.pulse_input = _pa_recording_sink_name + ".monitor"
 
         if _tmp_file:
             # Use a dot as filename prefix to hide the file until the recording was successful
@@ -516,7 +505,7 @@ class PulseAudio:
     def load_sink():
         log.info(f"[{app_name}] Creating pulse sink")
 
-        if _mute_pa_sink:
+        if _mute_pa_recording_sink:
             PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pa_recording_sink_name + '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2')
         else:
             PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pa_recording_sink_name + '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2 remix=no')
@@ -574,8 +563,7 @@ class PulseAudio:
         Shell.Popen("pactl set-sink-input-volume " + str(pa_spotify_sink_input_id) + " " + _pa_max_volume)
 
         # Set recording sink volume to 100%
-        if not _no_pa_sink:
-            Shell.Popen("pactl set-sink-volume " + _pa_recording_sink_name + " " + _pa_max_volume)
+        Shell.Popen("pactl set-sink-volume " + _pa_recording_sink_name + " " + _pa_max_volume)
 
 
 if __name__ == "__main__":
