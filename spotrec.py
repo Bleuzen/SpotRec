@@ -114,7 +114,7 @@ def doExit():
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
     os._exit(0)
-    #sys.exit(0)
+    # sys.exit(0)
 
 
 def handle_command_line():
@@ -129,17 +129,23 @@ def handle_command_line():
     global _use_pl_track_counter
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("-d", "--debug", help="Print a little more", action="store_true", default=_debug_logging)
-    parser.add_argument("-s", "--skip-intro", help="Skip the intro message", action="store_true", default=_skip_intro)
-    parser.add_argument("-m", "--mute-recording", help="Mute Spotify on your main output device while recording", action="store_true", default=_mute_pa_recording_sink)
+    parser = argparse.ArgumentParser(
+        description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("-d", "--debug", help="Print a little more",
+                        action="store_true", default=_debug_logging)
+    parser.add_argument("-s", "--skip-intro", help="Skip the intro message",
+                        action="store_true", default=_skip_intro)
+    parser.add_argument("-m", "--mute-recording", help="Mute Spotify on your main output device while recording",
+                        action="store_true", default=_mute_pa_recording_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"", default=_filename_pattern)
-    parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording", action="store_true", default= not _tmp_file)
-    parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces", action="store_true", default=_underscored_filenames)
+    parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording",
+                        action="store_true", default=not _tmp_file)
+    parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
+                        action="store_true", default=_underscored_filenames)
 
     args = parser.parse_args()
 
@@ -191,18 +197,22 @@ class Spotify:
         try:
             bus = dbus.SessionBus()
             player = bus.get_object(self.dbus_dest, self.dbus_path)
-            self.iface = dbus.Interface(player, "org.freedesktop.DBus.Properties")
+            self.iface = dbus.Interface(
+                player, "org.freedesktop.DBus.Properties")
             self.update_metadata()
         except DBusException:
-            log.error(f"Error: Could not connect to the Spotify Client. It has to be running first before starting {app_name}.")
+            log.error(
+                f"Error: Could not connect to the Spotify Client. It has to be running first before starting {app_name}.")
             sys.exit(1)
             pass
 
         self.track = self.get_track(self.metadata)
         self.trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
-        self.playbackstatus = self.iface.Get(self.mpris_player_string, "PlaybackStatus")
+        self.playbackstatus = self.iface.Get(
+            self.mpris_player_string, "PlaybackStatus")
 
-        self.iface.connect_to_signal("PropertiesChanged", self.on_playing_uri_changed)
+        self.iface.connect_to_signal(
+            "PropertiesChanged", self.on_playing_uri_changed)
 
         class DBusListenerThread(Thread):
             def run(self2):
@@ -223,7 +233,8 @@ class Spotify:
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
     def send_dbus_cmd(self, cmd):
-        Shell.run('dbus-send --print-reply --dest=' + self.dbus_dest + ' ' + self.dbus_path + ' ' + self.mpris_player_string + '.' + cmd)
+        Shell.run('dbus-send --print-reply --dest=' + self.dbus_dest +
+                  ' ' + self.dbus_path + ' ' + self.mpris_player_string + '.' + cmd)
 
     def quit_glib_loop(self):
         self.glibloop.quit()
@@ -249,7 +260,7 @@ class Spotify:
             album=self.metadata_album,
             trackNumber=self.metadata_trackNumber,
             title=self.metadata_title
-            ))
+        ))
 
         if _underscored_filenames:
             ret = ret.replace(".", "").lower()
@@ -283,7 +294,8 @@ class Spotify:
 
                 # Spotify pauses when the playlist ended. Don't start a recording / return in this case.
                 if not self.is_playing():
-                    log.info(f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
+                    log.info(
+                        f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
 
                     # Exit after playlist recorded
                     if not is_script_paused:
@@ -307,7 +319,8 @@ class Spotify:
 
                 # Start FFmpeg recording
                 ff = FFmpeg()
-                ff.record(self.track, self.get_metadata_for_ffmpeg(self.metadata))
+                ff.record(
+                    self.track, self.get_metadata_for_ffmpeg(self.metadata))
 
                 # Give FFmpeg some time to start up before starting the song
                 time.sleep(_recording_time_before_song)
@@ -372,9 +385,11 @@ class Spotify:
     def update_metadata(self):
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
-        self.metadata_artist = ", ".join(self.metadata.get(dbus.String(u'xesam:artist')))
+        self.metadata_artist = ", ".join(
+            self.metadata.get(dbus.String(u'xesam:artist')))
         self.metadata_album = self.metadata.get(dbus.String(u'xesam:album'))
-        self.metadata_trackNumber = str(self.metadata.get(dbus.String(u'xesam:trackNumber'))).zfill(2)
+        self.metadata_trackNumber = str(self.metadata.get(
+            dbus.String(u'xesam:trackNumber'))).zfill(2)
         self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
 
     def init_pa_stuff_if_needed(self):
@@ -425,6 +440,7 @@ class FFmpeg:
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
+
         if _sort_in_folders:
             self.outputDir = os.path.join(_output_directory, metadata_for_file["artist"] + " - " + metadata_for_file["album"])
         else:
@@ -467,9 +483,11 @@ class FFmpeg:
                                             self.filename[len(self.tmp_file_prefix):])
                     if os.path.exists(tmp_file):
                         shutil.move(tmp_file, new_file)
-                        log.debug(f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
+                        log.debug(
+                            f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
                     else:
-                        log.warning(f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
+                        log.warning(
+                            f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
@@ -518,7 +536,8 @@ class Shell:
     @staticmethod
     def check_output(cmd):
         log.debug(f"[Shell] check_output: {cmd}")
-        out = subprocess.check_output(cmd.encode(_shell_encoding), shell=True, executable=_shell_executable, encoding=_shell_encoding)
+        out = subprocess.check_output(cmd.encode(
+            _shell_encoding), shell=True, executable=_shell_executable, encoding=_shell_encoding)
         # when not using 'encoding=' -> out.decode()
         # but since it is set, decode() ist not needed anymore
         #out = out.decode()
@@ -533,9 +552,11 @@ class PulseAudio:
         log.info(f"[{app_name}] Creating pulse sink")
 
         if _mute_pa_recording_sink:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pa_recording_sink_name + '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pa_recording_sink_name +
+                                                    '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2')
         else:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pa_recording_sink_name + '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2 remix=no')
+            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pa_recording_sink_name +
+                                                    '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2 remix=no')
             # To use another master sink where to play:
             # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
 
@@ -552,13 +573,14 @@ class PulseAudio:
             return
 
         application_name = "spotify"
-        cmdout = Shell.check_output("pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $0} /application.name = \"" + application_name + "\"/ {print $3};'")
+        cmdout = Shell.check_output(
+            "pactl list sink-inputs | awk '{print tolower($0)};' | awk '/ #/ {print $0} /application.name = \"" + application_name + "\"/ {print $3};'")
         index = -1
         last = ""
 
         for line in cmdout.split('\n'):
             if line == '"' + application_name + '"':
-                index = last.split(" #",1)[1]
+                index = last.split(" #", 1)[1]
                 break
             last = line
 
@@ -572,12 +594,14 @@ class PulseAudio:
         class MoveSpotifyToSinktThread(Thread):
             def run(self):
                 if pa_spotify_sink_input_id > -1:
-                    exit_code = Shell.run("pactl move-sink-input " + str(pa_spotify_sink_input_id) + " " + _pa_recording_sink_name).returncode
+                    exit_code = Shell.run("pactl move-sink-input " + str(
+                        pa_spotify_sink_input_id) + " " + _pa_recording_sink_name).returncode
 
                     if exit_code == 0:
                         log.info(f"[{app_name}] Moved Spotify to own sink")
                     else:
-                        log.warning(f"[{app_name}] Failed to move Spotify to own sink")
+                        log.warning(
+                            f"[{app_name}] Failed to move Spotify to own sink")
 
         move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
         move_spotify_to_sink_thread.start()
@@ -587,10 +611,12 @@ class PulseAudio:
         log.debug(f"[{app_name}] Set sink volumes to 100%")
 
         # Set Spotify volume to 100%
-        Shell.Popen("pactl set-sink-input-volume " + str(pa_spotify_sink_input_id) + " " + _pa_max_volume)
+        Shell.Popen("pactl set-sink-input-volume " +
+                    str(pa_spotify_sink_input_id) + " " + _pa_max_volume)
 
         # Set recording sink volume to 100%
-        Shell.Popen("pactl set-sink-volume " + _pa_recording_sink_name + " " + _pa_max_volume)
+        Shell.Popen("pactl set-sink-volume " +
+                    _pa_recording_sink_name + " " + _pa_max_volume)
 
 
 if __name__ == "__main__":
