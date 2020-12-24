@@ -29,7 +29,7 @@ import shlex
 # 'bash': shell commands
 
 app_name = "SpotRec"
-app_version = "0.12.0"
+app_version = "0.13.0"
 
 # Settings with Defaults
 _debug_logging = False
