@@ -207,15 +207,19 @@ class Spotify:
             "PropertiesChanged", self.on_playing_uri_changed)
 
         class DBusListenerThread(Thread):
-            def run(self2):
+            def __init__(self, parent, *args):
+                Thread.__init__(self)
+                self.parent = parent
+
+            def run(self):
                 # Run the GLib event loop to process DBus signals as they arrive
-                self.glibloop = GLib.MainLoop()
-                self.glibloop.run()
+                self.parent.glibloop = GLib.MainLoop()
+                self.parent.glibloop.run()
 
                 # run() blocks this thread. This gets printed after it's dead.
                 log.info(f"[{app_name}] GLib Loop thread killed")
 
-        dbuslistener = DBusListenerThread()
+        dbuslistener = DBusListenerThread(self)
         dbuslistener.start()
 
         log.info(f"[{app_name}] Spotify DBus listener started")
@@ -256,7 +260,7 @@ class Spotify:
 
         if _underscored_filenames:
             ret = ret.replace(".", "").lower()
-            ret = re.sub("[\s\-\[\]()']+", "_", ret)
+            ret = re.sub(r"[\s\-\[\]()']+", "_", ret)
             ret = re.sub("__+", "__", ret)
 
         return ret
@@ -267,25 +271,29 @@ class Spotify:
     def start_record(self):
         # Start new recording in new Thread
         class RecordThread(Thread):
-            def run(self2):
+            def __init__(self, parent, *args):
+                Thread.__init__(self)
+                self.parent = parent
+
+            def run(self):
                 global is_script_paused
 
                 # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
-                self2.trackid_when_thread_started = self.trackid
+                self.trackid_when_thread_started = self.parent.trackid
 
                 # Stop the recording before
                 # Use copy() to not change the list during this method runs
-                self.stop_old_recording(FFmpeg.instances.copy())
+                self.parent.stop_old_recording(FFmpeg.instances.copy())
 
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
                 time.sleep(_playback_time_before_seeking_to_beginning)
 
                 # Check if still the same song is still playing, return if not
-                if self2.trackid_when_thread_started != self.trackid:
+                if self.trackid_when_thread_started != self.parent.trackid:
                     return
 
                 # Spotify pauses when the playlist ended. Don't start a recording / return in this case.
-                if not self.is_playing():
+                if not self.parent.is_playing():
                     log.info(
                         f"[{app_name}] Spotify is paused. Maybe the current album or playlist has ended.")
 
@@ -296,7 +304,7 @@ class Spotify:
                     return
 
                 # Do not record ads
-                if self.trackid.startswith("spotify:ad:"):
+                if self.parent.trackid.startswith("spotify:ad:"):
                     log.debug(f"[{app_name}] Skipping ad")
                     return
 
@@ -304,23 +312,23 @@ class Spotify:
 
                 # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
                 is_script_paused = True
-                self.send_dbus_cmd("Pause")
+                self.parent.send_dbus_cmd("Pause")
                 time.sleep(0.1)
                 is_script_paused = False
-                self.send_dbus_cmd("Previous")
+                self.parent.send_dbus_cmd("Previous")
 
                 # Start FFmpeg recording
                 ff = FFmpeg()
                 ff.record(
-                    self.track, self.get_metadata_for_ffmpeg(self.metadata))
+                    self.parent.track, self.parent.get_metadata_for_ffmpeg(self.parent.metadata))
 
                 # Give FFmpeg some time to start up before starting the song
                 time.sleep(_recording_time_before_song)
 
                 # Play the track
-                self.send_dbus_cmd("Play")
+                self.parent.send_dbus_cmd("Play")
 
-        record_thread = RecordThread()
+        record_thread = RecordThread(self)
         record_thread.start()
 
     def stop_old_recording(self, instances):
@@ -468,10 +476,14 @@ class FFmpeg:
     # Kill the process in the background
     def stop(self):
         class KillThread(Thread):
-            def run(self2):
-                self.stop_blocking()
+            def __init__(self, parent, *args):
+                Thread.__init__(self)
+                self.parent = parent
 
-        kill_thread = KillThread()
+            def run(self):
+                self.parent.stop_blocking()
+
+        kill_thread = KillThread(self)
         kill_thread.start()
 
     @staticmethod
