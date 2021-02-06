@@ -146,6 +146,7 @@ def handle_command_line():
                         action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
+    parser.add_argument("-a", "--sort-in-folders", help="Sort the files into album folders", action="store_true", default=_sort_in_folders)
 
     args = parser.parse_args()
 
@@ -444,6 +445,14 @@ class FFmpeg:
         metadata_params = ''
         for key, value in metadata_for_file.items():
             metadata_params += ' -metadata ' + key + '=' + shlex.quote(value)
+
+        if _sort_in_folders:
+            self.outputDir = os.path.join(_output_directory, metadata_for_file["artist"] + " - " + metadata_for_file["album"])
+        else:
+            self.outputDir = _output_directory
+
+        if not os.path.isdir(self.outputDir):
+            os.mkdir(self.outputDir)
 
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
