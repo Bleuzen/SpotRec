@@ -40,6 +40,7 @@ _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
 _underscored_filenames = False
+_sort_in_folders = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -126,11 +127,13 @@ def handle_command_line():
     global _filename_pattern
     global _tmp_file
     global _underscored_filenames
+    global _sort_in_folders
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print a little more", action="store_true", default=_debug_logging)
     parser.add_argument("-s", "--skip-intro", help="Skip the intro message", action="store_true", default=_skip_intro)
+    parser.add_argument("-a", "--sort-in-folders", help="Sort the files into album folders", action="store_true", default=_sort_in_folders)
     parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
     parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
@@ -159,6 +162,7 @@ def handle_command_line():
 
     _underscored_filenames = args.underscored_filenames
 
+    _sort_folder = args.sort_in_folders
 
 def init_log():
     global log
@@ -217,7 +221,7 @@ class Spotify:
 
         log.info(f"[{app_name}] Spotify DBus listener started")
 
-        log.info(f"[{app_name}] Current song: " + self.track)
+        log.info(f"[{app_name}] Current song: " + self.track + " from the album |" + self.metadata_album + "|")
         log.info(f"[{app_name}] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
@@ -245,7 +249,7 @@ class Spotify:
 
         ret = str(filename_pattern.format(
             artist=self.metadata_artist,
-            album=self.metadata_artist,
+            album=self.metadata_album,
             trackNumber=self.metadata_trackNumber,
             title=self.metadata_title
             ))
@@ -394,6 +398,7 @@ class FFmpeg:
     instances = []
 
     def record(self, filename, metadata_for_file = {}):
+
         if _no_pa_sink:
             self.pulse_input = "default"
         else:
@@ -416,7 +421,14 @@ class FFmpeg:
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac ' + shlex.quote(_output_directory + "/" + self.filename))
+        if _sort_in_folders:
+            self.outputDir = os.path.join(_output_directory, metadata_for_file["artist"] + " - " + metadata_for_file["album"])
+        else:
+            self.outputDir = _output_directory
+
+        if not os.path.isdir(self.outputDir):
+            os.mkdir(self.outputDir)
+        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac ' + shlex.quote(os.path.join(self.outputDir, self.filename)))
 
         self.pid = str(self.process.pid)
 
@@ -446,8 +458,8 @@ class FFmpeg:
                 log.info(f"[FFmpeg] [{self.pid}] killed")
             else:
                 if _tmp_file:
-                    tmp_file = os.path.join(_output_directory, self.filename)
-                    new_file = os.path.join(_output_directory,
+                    tmp_file = os.path.join(self.outputDir, self.filename)
+                    new_file = os.path.join(self.outputDir,
                                             self.filename[len(self.tmp_file_prefix):])
                     if os.path.exists(tmp_file):
                         shutil.move(tmp_file, new_file)
