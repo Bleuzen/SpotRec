@@ -41,6 +41,7 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
 _underscored_filenames = False
 _sort_in_folders = False
+_use_pl_track_counter = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -51,6 +52,7 @@ _playback_time_before_seeking_to_beginning = 4.5
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
 _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
+_pl_track_counter = 1
 
 # Variables that change during runtime
 is_script_paused = False
@@ -128,12 +130,14 @@ def handle_command_line():
     global _tmp_file
     global _underscored_filenames
     global _sort_in_folders
+    global _use_pl_track_counter
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print a little more", action="store_true", default=_debug_logging)
     parser.add_argument("-s", "--skip-intro", help="Skip the intro message", action="store_true", default=_skip_intro)
     parser.add_argument("-a", "--sort-in-folders", help="Sort the files into album folders", action="store_true", default=_sort_in_folders)
+    parser.add_argument("-c", "--pl-track_counter", help="Output filename gets the track number of playlist order", action="store_true", default=_use_pl_track_counter)
     parser.add_argument("-n", "--no-sink", help="Don't create an extra PulseAudio sink for recording", action="store_true", default=_no_pa_sink)
     parser.add_argument("-m", "--mute-sink", help="Don't play sink output on your main sink", action="store_true", default=_mute_pa_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
@@ -163,6 +167,8 @@ def handle_command_line():
     _underscored_filenames = args.underscored_filenames
 
     _sort_folder = args.sort_in_folders
+
+    _use_pl_track_counter = args.pl_track_counter
 
 def init_log():
     global log
@@ -398,11 +404,22 @@ class FFmpeg:
     instances = []
 
     def record(self, filename, metadata_for_file = {}):
+        global _pl_track_counter
 
         if _no_pa_sink:
             self.pulse_input = "default"
         else:
             self.pulse_input = _pa_recording_sink_name + ".monitor"
+
+        if _use_pl_track_counter:
+            # expect incoming file name format like '05 - artist - song' 
+            # test if fourth char is a '-'
+            if filename[3] == '-':
+                filename = filename[5:]
+            
+            # then add the playlist counter as 00x - artist - song
+            filename = "{:#03d}".format(_pl_track_counter) + " - " + filename
+            _pl_track_counter = _pl_track_counter + 1
 
         if _tmp_file:
             # Use a dot as filename prefix to hide the file until the recording was successful
