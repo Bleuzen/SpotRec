@@ -147,6 +147,7 @@ def handle_command_line():
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
     parser.add_argument("-a", "--sort-in-folders", help="Sort the files into album folders", action="store_true", default=_sort_in_folders)
+    parser.add_argument("-c", "--pl-track_counter", help="Output filename gets the track number of playlist order", action="store_true", default=_use_pl_track_counter)
 
     args = parser.parse_args()
 
@@ -446,26 +447,21 @@ class FFmpeg:
         for key, value in metadata_for_file.items():
             metadata_params += ' -metadata ' + key + '=' + shlex.quote(value)
 
+        # if sorting in folders is turned on the output directory name changes
         if _sort_in_folders:
             self.outputDir = os.path.join(_output_directory, metadata_for_file["artist"] + " - " + metadata_for_file["album"])
         else:
             self.outputDir = _output_directory
 
+        # If output folder is not available create it
         if not os.path.isdir(self.outputDir):
             os.mkdir(self.outputDir)
 
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
-
-        if _sort_in_folders:
-            self.outputDir = os.path.join(_output_directory, metadata_for_file["artist"] + " - " + metadata_for_file["album"])
-        else:
-            self.outputDir = _output_directory
-
-        if not os.path.isdir(self.outputDir):
-            os.mkdir(self.outputDir)
-        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' + self.pulse_input + metadata_params + ' -acodec flac ' + shlex.quote(os.path.join(self.outputDir, self.filename)))
+        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' 
+		+ self.pulse_input + metadata_params + ' -acodec flac ' + shlex.quote(os.path.join(self.outputDir, self.filename)))
 
         self.pid = str(self.process.pid)
 
