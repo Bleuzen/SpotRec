@@ -366,6 +366,10 @@ class Spotify:
             self.track = self.get_track(self.metadata)
             # Trigger event method
             self.playing_song_changed()
+            # Update track counter
+            if _use_internal_track_counter:
+                global internal_track_counter
+                internal_track_counter += 1
 
         # Update playback status
         new_playbackstatus = self.iface.Get(Player, "PlaybackStatus")
@@ -452,8 +456,6 @@ class FFmpeg:
 
     # The blocking version of this method waits until the process is dead
     def stop_blocking(self):
-        global internal_track_counter
-
         # Remove from instances list (and terminate)
         if self in self.instances:
             self.instances.remove(self)
@@ -488,10 +490,6 @@ class FFmpeg:
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
-
-            # Update playlist counter here to get rid of too many triggers for counting
-            if _use_internal_track_counter:
-                internal_track_counter += 1
 
     # Kill the process in the background
     def stop(self):
