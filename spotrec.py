@@ -288,6 +288,7 @@ class Spotify:
 
             def run(self):
                 global is_script_paused
+                global _output_directory
 
                 # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
                 self.trackid_when_thread_started = self.parent.trackid
@@ -323,15 +324,24 @@ class Spotify:
 
                 # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
                 is_script_paused = True
+                # Pause until out dir is created
                 self.parent.send_dbus_cmd("Pause")
-                time.sleep(0.1)
+
+                # Create output folder if necessary
+                # If filename_pattern specifies subfolder(s) the track name is only the basename while the dirname is the subfolder path
+                self.out_dir = os.path.join(
+                    _output_directory, os.path.dirname(self.parent.track))
+                Path(self.out_dir).mkdir(
+                    parents=True, exist_ok=True)
+
+                # Go to beginning of the song
                 is_script_paused = False
                 self.parent.send_dbus_cmd("Previous")
 
                 # Start FFmpeg recording
                 ff = FFmpeg()
-                ff.record(
-                    self.parent.track, self.parent.get_metadata_for_ffmpeg())
+                ff.record(self.out_dir,
+                          self.parent.track, self.parent.get_metadata_for_ffmpeg())
 
                 # Give FFmpeg some time to start up before starting the song
                 time.sleep(_recording_time_before_song)
@@ -424,8 +434,8 @@ class Spotify:
 class FFmpeg:
     instances = []
 
-    def record(self, file, metadata_for_file={}):
-        global _output_directory
+    def record(self, out_dir, file, metadata_for_file={}):
+        self.out_dir = out_dir
 
         self.pulse_input = _pa_recording_sink_name + ".monitor"
 
@@ -442,18 +452,12 @@ class FFmpeg:
         for key, value in metadata_for_file.items():
             metadata_params += ' -metadata ' + key + '=' + shlex.quote(value)
 
-        # If output folder is not available then create it
-        # If filename_pattern specifies a subfolder path the track name is only the basename the rest is a subfolder path
-        self.outsubdir = os.path.dirname(file)
-        Path(os.path.join(_output_directory, self.outsubdir)).mkdir(
-            parents=True, exist_ok=True)
-
         # FFmpeg Options:
         #  "-hide_banner": short the debug log a little
         #  "-y": overwrite existing files
         self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' +
                                    self.pulse_input + metadata_params + ' -acodec flac ' +
-                                   shlex.quote(os.path.join(_output_directory, self.outsubdir, self.filename)))
+                                   shlex.quote(os.path.join(self.out_dir, self.filename)))
 
         self.pid = str(self.process.pid)
 
@@ -484,8 +488,8 @@ class FFmpeg:
             else:
                 if _tmp_file:
                     tmp_file = os.path.join(
-                        _output_directory, self.outsubdir, self.filename)
-                    new_file = os.path.join(_output_directory, self.outsubdir,
+                        self.out_dir, self.filename)
+                    new_file = os.path.join(self.out_dir,
                                             self.filename[len(self.tmp_file_prefix):])
                     if os.path.exists(tmp_file):
                         shutil.move(tmp_file, new_file)
