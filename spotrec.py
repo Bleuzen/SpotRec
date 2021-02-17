@@ -252,7 +252,7 @@ class Spotify:
         return {
             "artist": self.metadata_artist,
             "album": self.metadata_album,
-            "track": self.metadata_trackNumber,
+            "track": self.metadata_trackNumber.strip("0"),
             "title": self.metadata_title
         }
 
