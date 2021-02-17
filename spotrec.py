@@ -50,12 +50,12 @@ _playback_time_before_seeking_to_beginning = 4.5
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
 _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
-_pl_track_counter = 1
 
 # Variables that change during runtime
 is_script_paused = False
 is_first_playing = True
 pa_spotify_sink_input_id = -1
+pl_track_counter = 1
 
 
 def main():
@@ -352,16 +352,12 @@ class Spotify:
 
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playing_uri_changed(self, Player, three, four):
-        global _pl_track_counter
         #log.debug("uri changed event")
 
         # Update Metadata
         self.update_metadata()
 
-        if _use_pl_track_counter:
-            _pl_track_counter += 1
-
-        # Update track & trackid
+       # Update track & trackid
 
         self.trackid2 = self.metadata.get(dbus.String(u'mpris:trackid'))
         if self.trackid != self.trackid2:
@@ -392,6 +388,8 @@ class Spotify:
         self.init_pa_stuff_if_needed()
 
     def update_metadata(self):
+        global pl_track_counter
+        
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
         self.metadata_artist = ", ".join(
@@ -401,7 +399,7 @@ class Spotify:
         self.metadata_trackNumber = str(self.metadata.get(
             dbus.String(u'xesam:trackNumber'))).zfill(2)
         if _use_pl_track_counter:
-            self.metadata_trackNumber = str(_pl_track_counter).zfill(3)           
+            self.metadata_trackNumber = str(pl_track_counter).zfill(3)           
 
 
     def init_pa_stuff_if_needed(self):
@@ -457,6 +455,8 @@ class FFmpeg:
 
     # The blocking version of this method waits until the process is dead
     def stop_blocking(self):
+        global pl_track_counter
+
         # Remove from instances list (and terminate)
         if self in self.instances:
             self.instances.remove(self)
@@ -490,6 +490,10 @@ class FFmpeg:
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
+
+            # Update playlist counter here to get rid of too many triggers for counting
+            if _use_pl_track_counter:
+                pl_track_counter += 1
 
     # Kill the process in the background
     def stop(self):
