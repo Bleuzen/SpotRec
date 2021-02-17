@@ -39,7 +39,7 @@ _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
 _underscored_filenames = False
-_use_intern_track_counter = False
+_use_internal_track_counter = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -55,7 +55,7 @@ _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
 is_script_paused = False
 is_first_playing = True
 pa_spotify_sink_input_id = -1
-intern_track_counter = 1
+internal_track_counter = 1
 
 
 def main():
@@ -124,7 +124,7 @@ def handle_command_line():
     global _filename_pattern
     global _tmp_file
     global _underscored_filenames
-    global _use_intern_track_counter
+    global _use_internal_track_counter
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(
@@ -144,7 +144,7 @@ def handle_command_line():
                         action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
-    parser.add_argument("-c", "--intern-track-counter", help="Replace Spotify's tracknumber with own counter. Useable for preserving a playlist file order.", action="store_true", default=_use_intern_track_counter)
+    parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's tracknumber with own counter. Useable for preserving a playlist file order.", action="store_true", default=_use_internal_track_counter)
 
     args = parser.parse_args()
 
@@ -162,7 +162,7 @@ def handle_command_line():
 
     _underscored_filenames = args.underscored_filenames
 
-    _use_intern_track_counter = args.intern_track_counter
+    _use_internal_track_counter = args.internal_track_counter
 
 def init_log():
     global log
@@ -388,7 +388,7 @@ class Spotify:
         self.init_pa_stuff_if_needed()
 
     def update_metadata(self):
-        global intern_track_counter
+        global internal_track_counter
 
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
@@ -398,8 +398,8 @@ class Spotify:
         self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
         self.metadata_trackNumber = str(self.metadata.get(
             dbus.String(u'xesam:trackNumber'))).zfill(2)
-        if _use_intern_track_counter:
-            self.metadata_trackNumber = str(intern_track_counter).zfill(3)           
+        if _use_internal_track_counter:
+            self.metadata_trackNumber = str(internal_track_counter).zfill(3)           
 
 
     def init_pa_stuff_if_needed(self):
@@ -455,7 +455,7 @@ class FFmpeg:
 
     # The blocking version of this method waits until the process is dead
     def stop_blocking(self):
-        global intern_track_counter
+        global internal_track_counter
 
         # Remove from instances list (and terminate)
         if self in self.instances:
@@ -492,8 +492,8 @@ class FFmpeg:
             self.process = None
 
             # Update playlist counter here to get rid of too many triggers for counting
-            if _use_intern_track_counter:
-                intern_track_counter += 1
+            if _use_internal_track_counter:
+                internal_track_counter += 1
 
     # Kill the process in the background
     def stop(self):
