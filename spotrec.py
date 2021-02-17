@@ -144,7 +144,7 @@ def handle_command_line():
                         action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
-    parser.add_argument("-c", "--pl-track-counter", help="Output filename gets the track number of playlist order", action="store_true", default=_use_pl_track_counter)
+    parser.add_argument("-c", "--pl-track-counter", help="Replace Spotify's tracknumber with own counter. Useable for preserving a playlist file order.", action="store_true", default=_use_pl_track_counter)
 
     args = parser.parse_args()
 
@@ -389,7 +389,7 @@ class Spotify:
 
     def update_metadata(self):
         global pl_track_counter
-        
+
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
         self.metadata_artist = ", ".join(
