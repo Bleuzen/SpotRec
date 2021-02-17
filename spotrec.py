@@ -189,7 +189,9 @@ class Spotify:
     playbackstatus_paused = "Paused"
 
     def __init__(self):
-        self.glibloop = dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        self.glibloop = None
+        
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
         try:
             bus = dbus.SessionBus()
