@@ -140,12 +140,13 @@ def handle_command_line():
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"\n"
-                                                         "May contain slashes to create sub directories", default=_filename_pattern)
+                                                         "May contain slashes to create sub directories\n"
+                                                         "Example: \"{artist}/{album}/{trackNumber} {title}\"", default=_filename_pattern)
     parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording",
                         action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
-    parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's trackNumber with own counter. Useable for preserving a playlist file order.",
+    parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's trackNumber with own counter. Useable for preserving a playlist file order",
                         action="store_true", default=_use_internal_track_counter)
 
     args = parser.parse_args()
