@@ -39,6 +39,7 @@ _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
 _underscored_filenames = False
+_use_internal_track_counter = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -54,6 +55,7 @@ _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
 is_script_paused = False
 is_first_playing = True
 pa_spotify_sink_input_id = -1
+internal_track_counter = 1
 
 
 def main():
@@ -122,6 +124,7 @@ def handle_command_line():
     global _filename_pattern
     global _tmp_file
     global _underscored_filenames
+    global _use_internal_track_counter
 
     #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(
@@ -141,6 +144,7 @@ def handle_command_line():
                         action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
+    parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's tracknumber with own counter. Useable for preserving a playlist file order.", action="store_true", default=_use_internal_track_counter)
 
     args = parser.parse_args()
 
@@ -158,6 +162,7 @@ def handle_command_line():
 
     _underscored_filenames = args.underscored_filenames
 
+    _use_internal_track_counter = args.internal_track_counter
 
 def init_log():
     global log
@@ -184,6 +189,8 @@ class Spotify:
     playbackstatus_paused = "Paused"
 
     def __init__(self):
+        self.glibloop = None
+        
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
         try:
@@ -224,7 +231,7 @@ class Spotify:
 
         log.info(f"[{app_name}] Spotify DBus listener started")
 
-        log.info(f"[{app_name}] Current song: " + self.track)
+        log.info(f"[{app_name}] Current song: " + self.track + " from the album " + self.metadata_album)
         log.info(f"[{app_name}] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
@@ -250,10 +257,10 @@ class Spotify:
             filename_pattern = re.sub(" - ", "__", _filename_pattern)
         else:
             filename_pattern = _filename_pattern
-
+        
         ret = str(filename_pattern.format(
             artist=self.metadata_artist,
-            album=self.metadata_artist,
+            album=self.metadata_album,
             trackNumber=self.metadata_trackNumber,
             title=self.metadata_title
         ))
@@ -352,7 +359,7 @@ class Spotify:
         # Update Metadata
         self.update_metadata()
 
-        # Update track & trackid
+       # Update track & trackid
 
         self.trackid2 = self.metadata.get(dbus.String(u'mpris:trackid'))
         if self.trackid != self.trackid2:
@@ -383,14 +390,19 @@ class Spotify:
         self.init_pa_stuff_if_needed()
 
     def update_metadata(self):
+        global internal_track_counter
+
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
         self.metadata_artist = ", ".join(
             self.metadata.get(dbus.String(u'xesam:artist')))
         self.metadata_album = self.metadata.get(dbus.String(u'xesam:album'))
+        self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
         self.metadata_trackNumber = str(self.metadata.get(
             dbus.String(u'xesam:trackNumber'))).zfill(2)
-        self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
+        if _use_internal_track_counter:
+            self.metadata_trackNumber = str(internal_track_counter).zfill(3)           
+
 
     def init_pa_stuff_if_needed(self):
         if self.is_playing():
@@ -409,27 +421,33 @@ class FFmpeg:
     instances = []
 
     def record(self, filename, metadata_for_file={}):
+        global _output_directory
+
         self.pulse_input = _pa_recording_sink_name + ".monitor"
 
         if _tmp_file:
             # Use a dot as filename prefix to hide the file until the recording was successful
             self.tmp_file_prefix = "."
-            self.filename = self.tmp_file_prefix + filename + ".flac"
+            self.filename = self.tmp_file_prefix + os.path.basename(filename) + ".flac"
         else:
-            self.filename = filename + ".flac"
-        # Fix for filenames containing '/'
-        self.filename = self.filename.replace("/", "_")
+            self.filename = os.path.basename(filename) + ".flac"
 
         # build metadata param
         metadata_params = ''
         for key, value in metadata_for_file.items():
             metadata_params += ' -metadata ' + key + '=' + shlex.quote(value)
 
+        # If output folder is not available then create it
+        # If filename_pattern specifies a subfolder path the track name is only the basename the rest is a subfolder path
+        self.outsubdir = os.path.dirname(filename)
+        Path(os.path.join(_output_directory, self.outsubdir)).mkdir(parents=True, exist_ok=True)
+
         # FFmpeg Options:
         #  "-hide_banner": to short the debug log a little
         #  "-y": to overwrite existing files
         self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' +
-                                   self.pulse_input + metadata_params + ' -acodec flac ' + shlex.quote(_output_directory + "/" + self.filename))
+		                   self.pulse_input + metadata_params + ' -acodec flac ' + 
+                                   shlex.quote(os.path.join(_output_directory, self.outsubdir, self.filename)))
 
         self.pid = str(self.process.pid)
 
@@ -439,6 +457,8 @@ class FFmpeg:
 
     # The blocking version of this method waits until the process is dead
     def stop_blocking(self):
+        global internal_track_counter
+
         # Remove from instances list (and terminate)
         if self in self.instances:
             self.instances.remove(self)
@@ -459,8 +479,8 @@ class FFmpeg:
                 log.info(f"[FFmpeg] [{self.pid}] killed")
             else:
                 if _tmp_file:
-                    tmp_file = os.path.join(_output_directory, self.filename)
-                    new_file = os.path.join(_output_directory,
+                    tmp_file = os.path.join(_output_directory, self.outsubdir, self.filename)
+                    new_file = os.path.join(_output_directory, self.outsubdir, 
                                             self.filename[len(self.tmp_file_prefix):])
                     if os.path.exists(tmp_file):
                         shutil.move(tmp_file, new_file)
@@ -472,6 +492,10 @@ class FFmpeg:
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
+
+            # Update playlist counter here to get rid of too many triggers for counting
+            if _use_internal_track_counter:
+                internal_track_counter += 1
 
     # Kill the process in the background
     def stop(self):
