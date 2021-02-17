@@ -193,10 +193,14 @@ class Spotify:
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
         try:
+            # Connect to Spotify client dbus interface
             bus = dbus.SessionBus()
             player = bus.get_object(self.dbus_dest, self.dbus_path)
             self.iface = dbus.Interface(
                 player, "org.freedesktop.DBus.Properties")
+            # Pull the metadata of the current track from Spotify
+            self.pull_metadata()
+            # Update own metadata vars for current track
             self.update_metadata()
         except DBusException:
             log.error(
@@ -354,12 +358,14 @@ class Spotify:
 
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playing_uri_changed(self, Player, three, four):
-        # Update Metadata
-        self.update_metadata()
+        # Pull updated metadata from Spotify
+        self.pull_metadata()
 
         # Update track & trackid
         new_trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
         if self.trackid != new_trackid:
+            # Update internal track metadata vars
+            self.update_metadata()
             # Update trackid
             self.trackid = new_trackid
             # Update track name
@@ -387,9 +393,10 @@ class Spotify:
 
         self.init_pa_stuff_if_needed()
 
-    def update_metadata(self):
+    def pull_metadata(self):
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
+    def update_metadata(self):
         self.metadata_artist = ", ".join(
             self.metadata.get(dbus.String(u'xesam:artist')))
         self.metadata_album = self.metadata.get(dbus.String(u'xesam:album'))
