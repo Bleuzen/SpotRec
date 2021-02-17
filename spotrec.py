@@ -77,7 +77,8 @@ def main():
     init_log()
 
     # Create the output directory
-    os.makedirs(_output_directory, exist_ok=True)
+    Path(_output_directory).mkdir(
+        parents=True, exist_ok=True)
 
     # Init Spotify DBus listener
     global _spotify
@@ -434,7 +435,7 @@ class Spotify:
 class FFmpeg:
     instances = []
 
-    def record(self, out_dir, file, metadata_for_file={}):
+    def record(self, out_dir: str, file: str, metadata_for_file={}):
         self.out_dir = out_dir
 
         self.pulse_input = _pa_recording_sink_name + ".monitor"
