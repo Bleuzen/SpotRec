@@ -126,7 +126,6 @@ def handle_command_line():
     global _underscored_filenames
     global _use_internal_track_counter
 
-    #parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser = argparse.ArgumentParser(
         description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-d", "--debug", help="Print a little more",
@@ -139,12 +138,14 @@ def handle_command_line():
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
-                                                         "Default: \"" + _filename_pattern + "\"", default=_filename_pattern)
+                                                         "Default: \"" + _filename_pattern + "\"\n"
+                                                         "May contain slashes to create sub directories", default=_filename_pattern)
     parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording",
                         action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
-    parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's tracknumber with own counter. Useable for preserving a playlist file order.", action="store_true", default=_use_internal_track_counter)
+    parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's trackNumber with own counter. Useable for preserving a playlist file order.",
+                        action="store_true", default=_use_internal_track_counter)
 
     args = parser.parse_args()
 
@@ -163,6 +164,7 @@ def handle_command_line():
     _underscored_filenames = args.underscored_filenames
 
     _use_internal_track_counter = args.internal_track_counter
+
 
 def init_log():
     global log
@@ -185,12 +187,9 @@ class Spotify:
     dbus_path = "/org/mpris/MediaPlayer2"
     mpris_player_string = "org.mpris.MediaPlayer2.Player"
 
-    playbackstatus_playing = "Playing"
-    playbackstatus_paused = "Paused"
-
     def __init__(self):
         self.glibloop = None
-        
+
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
         try:
@@ -231,7 +230,7 @@ class Spotify:
 
         log.info(f"[{app_name}] Spotify DBus listener started")
 
-        log.info(f"[{app_name}] Current song: " + self.track + " from the album " + self.metadata_album)
+        log.info(f"[{app_name}] Current song: {self.track}")
         log.info(f"[{app_name}] Current state: " + self.playbackstatus)
 
     # TODO: this is a dirty solution (uses cmdline instead of python for now)
@@ -240,7 +239,8 @@ class Spotify:
                   ' ' + self.dbus_path + ' ' + self.mpris_player_string + '.' + cmd)
 
     def quit_glib_loop(self):
-        self.glibloop.quit()
+        if self.glibloop is not None:
+            self.glibloop.quit()
 
         log.info(f"[{app_name}] Spotify DBus listener stopped")
 
@@ -257,7 +257,7 @@ class Spotify:
             filename_pattern = re.sub(" - ", "__", _filename_pattern)
         else:
             filename_pattern = _filename_pattern
-        
+
         ret = str(filename_pattern.format(
             artist=self.metadata_artist,
             album=self.metadata_album,
@@ -354,29 +354,23 @@ class Spotify:
 
     # This gets called whenever Spotify sends the playingUriChanged signal
     def on_playing_uri_changed(self, Player, three, four):
-        #log.debug("uri changed event")
-
         # Update Metadata
         self.update_metadata()
 
-       # Update track & trackid
-
-        self.trackid2 = self.metadata.get(dbus.String(u'mpris:trackid'))
-        if self.trackid != self.trackid2:
+        # Update track & trackid
+        new_trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
+        if self.trackid != new_trackid:
             # Update trackid
-            self.trackid = self.trackid2
+            self.trackid = new_trackid
             # Update track name
             self.track = self.get_track(self.metadata)
             # Trigger event method
             self.playing_song_changed()
 
         # Update playback status
-
-        self.playbackstatus2 = self.iface.Get(Player, "PlaybackStatus")
-
-        if self.playbackstatus != self.playbackstatus2:
-            self.playbackstatus = self.playbackstatus2
-
+        new_playbackstatus = self.iface.Get(Player, "PlaybackStatus")
+        if self.playbackstatus != new_playbackstatus:
+            self.playbackstatus = new_playbackstatus
             self.playbackstatus_changed()
 
     def playing_song_changed(self):
@@ -390,8 +384,6 @@ class Spotify:
         self.init_pa_stuff_if_needed()
 
     def update_metadata(self):
-        global internal_track_counter
-
         self.metadata = self.iface.Get(self.mpris_player_string, "Metadata")
 
         self.metadata_artist = ", ".join(
@@ -400,9 +392,10 @@ class Spotify:
         self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
         self.metadata_trackNumber = str(self.metadata.get(
             dbus.String(u'xesam:trackNumber'))).zfill(2)
-        if _use_internal_track_counter:
-            self.metadata_trackNumber = str(internal_track_counter).zfill(3)           
 
+        if _use_internal_track_counter:
+            global internal_track_counter
+            self.metadata_trackNumber = str(internal_track_counter).zfill(3)
 
     def init_pa_stuff_if_needed(self):
         if self.is_playing():
@@ -420,7 +413,7 @@ class Spotify:
 class FFmpeg:
     instances = []
 
-    def record(self, filename, metadata_for_file={}):
+    def record(self, file, metadata_for_file={}):
         global _output_directory
 
         self.pulse_input = _pa_recording_sink_name + ".monitor"
@@ -428,9 +421,10 @@ class FFmpeg:
         if _tmp_file:
             # Use a dot as filename prefix to hide the file until the recording was successful
             self.tmp_file_prefix = "."
-            self.filename = self.tmp_file_prefix + os.path.basename(filename) + ".flac"
+            self.filename = self.tmp_file_prefix + \
+                os.path.basename(file) + ".flac"
         else:
-            self.filename = os.path.basename(filename) + ".flac"
+            self.filename = os.path.basename(file) + ".flac"
 
         # build metadata param
         metadata_params = ''
@@ -439,14 +433,15 @@ class FFmpeg:
 
         # If output folder is not available then create it
         # If filename_pattern specifies a subfolder path the track name is only the basename the rest is a subfolder path
-        self.outsubdir = os.path.dirname(filename)
-        Path(os.path.join(_output_directory, self.outsubdir)).mkdir(parents=True, exist_ok=True)
+        self.outsubdir = os.path.dirname(file)
+        Path(os.path.join(_output_directory, self.outsubdir)).mkdir(
+            parents=True, exist_ok=True)
 
         # FFmpeg Options:
-        #  "-hide_banner": to short the debug log a little
-        #  "-y": to overwrite existing files
+        #  "-hide_banner": short the debug log a little
+        #  "-y": overwrite existing files
         self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' +
-		                   self.pulse_input + metadata_params + ' -acodec flac ' + 
+                                   self.pulse_input + metadata_params + ' -acodec flac ' +
                                    shlex.quote(os.path.join(_output_directory, self.outsubdir, self.filename)))
 
         self.pid = str(self.process.pid)
@@ -479,8 +474,9 @@ class FFmpeg:
                 log.info(f"[FFmpeg] [{self.pid}] killed")
             else:
                 if _tmp_file:
-                    tmp_file = os.path.join(_output_directory, self.outsubdir, self.filename)
-                    new_file = os.path.join(_output_directory, self.outsubdir, 
+                    tmp_file = os.path.join(
+                        _output_directory, self.outsubdir, self.filename)
+                    new_file = os.path.join(_output_directory, self.outsubdir,
                                             self.filename[len(self.tmp_file_prefix):])
                     if os.path.exists(tmp_file):
                         shutil.move(tmp_file, new_file)
@@ -549,7 +545,7 @@ class Shell:
             _shell_encoding), shell=True, executable=_shell_executable, encoding=_shell_encoding)
         # when not using 'encoding=' -> out.decode()
         # but since it is set, decode() ist not needed anymore
-        #out = out.decode()
+        # out = out.decode()
         return out.rstrip('\n')
 
 
