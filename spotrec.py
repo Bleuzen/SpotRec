@@ -204,7 +204,7 @@ class Spotify:
             sys.exit(1)
             pass
 
-        self.track = self.get_track(self.metadata)
+        self.track = self.get_track()
         self.trackid = self.metadata.get(dbus.String(u'mpris:trackid'))
         self.playbackstatus = self.iface.Get(
             self.mpris_player_string, "PlaybackStatus")
@@ -244,7 +244,7 @@ class Spotify:
 
         log.info(f"[{app_name}] Spotify DBus listener stopped")
 
-    def get_metadata_for_ffmpeg(self, metadata):
+    def get_metadata_for_ffmpeg(self):
         return {
             "artist": self.metadata_artist,
             "album": self.metadata_album,
@@ -252,7 +252,7 @@ class Spotify:
             "title": self.metadata_title
         }
 
-    def get_track(self, metadata):
+    def get_track(self):
         if _underscored_filenames:
             filename_pattern = re.sub(" - ", "__", _filename_pattern)
         else:
@@ -327,7 +327,7 @@ class Spotify:
                 # Start FFmpeg recording
                 ff = FFmpeg()
                 ff.record(
-                    self.parent.track, self.parent.get_metadata_for_ffmpeg(self.parent.metadata))
+                    self.parent.track, self.parent.get_metadata_for_ffmpeg())
 
                 # Give FFmpeg some time to start up before starting the song
                 time.sleep(_recording_time_before_song)
@@ -363,7 +363,7 @@ class Spotify:
             # Update trackid
             self.trackid = new_trackid
             # Update track name
-            self.track = self.get_track(self.metadata)
+            self.track = self.get_track()
             # Trigger event method
             self.playing_song_changed()
             # Update track counter
