@@ -38,7 +38,7 @@ Then you can run the python script which will record the music:
 ```
 ./spotrec.py -o ./my_song_dir --skip-intro
 ```
-By default spotrec it will output `*.flac` files. If you want to change the file type to `*.mp3` use the `--audio-codec` flag:
+By default spotrec will output `*.flac` files. If you want to change the file type to `*.mp3` use the `--audio-codec` flag:
 
 ```bash
 ./spotrec.py -o ./my_song_dir --skip-intro --audio-codec mp3
