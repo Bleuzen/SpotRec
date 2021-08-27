@@ -40,6 +40,7 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
 _underscored_filenames = False
 _use_internal_track_counter = False
+_audio_codec = "flac"
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -126,6 +127,7 @@ def handle_command_line():
     global _tmp_file
     global _underscored_filenames
     global _use_internal_track_counter
+    global _audio_codec
 
     parser = argparse.ArgumentParser(
         description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
@@ -137,6 +139,9 @@ def handle_command_line():
                         action="store_true", default=_mute_pa_recording_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
+    parser.add_argument("-ac", "--audio-codec", help="Set the audio codec of the recorded files\n"
+                                                     "Available: flac, mp3"
+                                                     "Default: flac", default=_audio_codec)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"\n"
@@ -167,6 +172,7 @@ def handle_command_line():
 
     _use_internal_track_counter = args.internal_track_counter
 
+    _audio_codec = args.audio_codec
 
 def init_log():
     global log
@@ -445,9 +451,9 @@ class FFmpeg:
             # Use a dot as filename prefix to hide the file until the recording was successful
             self.tmp_file_prefix = "."
             self.filename = self.tmp_file_prefix + \
-                os.path.basename(file) + ".flac"
+                os.path.basename(file) + "." + _audio_codec
         else:
-            self.filename = os.path.basename(file) + ".flac"
+            self.filename = os.path.basename(file) + "." +_audio_codec
 
         # build metadata param
         metadata_params = ''
@@ -458,7 +464,7 @@ class FFmpeg:
         #  "-hide_banner": short the debug log a little
         #  "-y": overwrite existing files
         self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' +
-                                   self.pulse_input + metadata_params + ' -acodec flac ' +
+                                   self.pulse_input + metadata_params + ' -acodec ' + _audio_codec+ ' ' +
                                    shlex.quote(os.path.join(self.out_dir, self.filename)))
 
         self.pid = str(self.process.pid)
