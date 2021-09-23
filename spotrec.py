@@ -19,6 +19,7 @@ import argparse
 import traceback
 import logging
 import shlex
+import requests
 
 # Deps:
 # 'python'
@@ -27,6 +28,7 @@ import shlex
 # 'gawk': awk in command to get sink input id of spotify
 # 'pulseaudio': sink control stuff
 # 'bash': shell commands
+# 'requests': get album art
 
 app_name = "SpotRec"
 app_version = "0.14.0"
@@ -415,6 +417,12 @@ class Spotify:
         self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
         self.metadata_trackNumber = str(self.metadata.get(
             dbus.String(u'xesam:trackNumber'))).zfill(2)
+        # https://github.com/patrickziegler/SpotifyRecorder/blob/4c1cc0a5449d0ca8bfb409ef98f4c7a21c73fe0f/spotify_recorder/track.py#L88
+        # https://community.spotify.com/t5/Desktop-Linux/MPRIS-cover-art-url-file-not-found/m-p/4929877/highlight/true#M19504
+        self.metadata_cover_url = str(self.metadata.get(dbus.String(u'mpris:artUrl'))).replace(
+            "https://open.spotify.com/image/",
+            "https://i.scdn.co/image/"
+        )
 
         if _use_internal_track_counter:
             global internal_track_counter
@@ -449,6 +457,8 @@ class FFmpeg:
         else:
             self.filename = os.path.basename(file) + ".flac"
 
+        # save this to the object because metadata_params is not elsewhere used
+        self.cover_url = metadata_for_file.pop('cover_url')
         # build metadata param
         metadata_params = ''
         for key, value in metadata_for_file.items():
@@ -497,9 +507,21 @@ class FFmpeg:
                         shutil.move(tmp_file, new_file)
                         log.debug(
                             f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
+                        self.filename = new_file    # used by add_cover_art
                     else:
                         log.warning(
                             f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
+
+                class AddCoverArtThread(Thread):
+                    def __init__(self, parent):
+                        Thread.__init__(self)
+                        self.parent = parent
+
+                    def run(self):
+                        self.parent.add_cover_art()
+
+                add_cover_art_thread = AddCoverArtThread(self)
+                add_cover_art_thread.start()
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
@@ -516,6 +538,50 @@ class FFmpeg:
 
         kill_thread = KillThread(self)
         kill_thread.start()
+
+    # add cover art to temp _withArtwork file
+    # and then move it to replace the original file
+    def add_cover_art(self):
+        if self.cover_url is None:
+            log.debug(f'[FFmpeg] No cover art found for {self.filename}')
+            return
+        # save the image locally -> could use a temp file here
+        #   but might add option to keep image later
+        cover_file = os.path.join(self.out_dir, os.path.splitext(self.filename)[0])  # without extension
+        temp_file = cover_file + '_withArtwork.' + 'flac'
+        if self.cover_url.startswith('file://'):
+            log.debug(f'[FFmpeg] Cover art is local for {self.filename}')
+            path = self.cover_url[len('file://'):]
+            _, ext = os.path.splitext(path)
+            cover_file += ext
+            shutil.copy2(path, cover_file)
+        else:
+            log.debug(f'[FFmpeg] Cover art is on server for {self.filename}')
+            answer = requests.get(self.cover_url)
+            if not answer.ok:
+                log.debug(f'[FFmpeg] Cover art not found on server for {self.filename}')
+                return
+            cover_file += "." + answer.headers["Content-Type"].rsplit("/")[-1]
+            with open(cover_file, "wb") as fd:
+                fd.write(answer.content)
+        # add it to a temporary file
+        log.debug(f'[FFmpeg] Saving cover art for {self.filename}')
+        # no need for separate thread / logging here because quick
+        returncode = Shell.run(_ffmpeg_executable + ' ' +
+                                '-y -i {} -i {} -map 0:a -map 1 '.format(
+                                    shlex.quote(os.path.join(self.out_dir, self.filename)), shlex.quote(cover_file)) +
+                                '-codec copy -id3v2_version 3 ' +
+                                '-metadata:s:v title="Album cover" ' +
+                                '-metadata:s:v comment="Cover (front)" ' +
+                                '-disposition:v attached_pic ' +
+                                shlex.quote(temp_file)).returncode
+        if returncode != 0:
+            log.warning(f"[FFmpeg] Failed adding artwork to {self.filename}")
+            return
+        # overwrite the actual file by the temp file
+        log.debug(f'[FFmpeg] Added cover art for {self.filename} in temp file, moving it')
+        shutil.move(temp_file, self.filename)
+        os.remove(cover_file)
 
     @staticmethod
     def killAll():
