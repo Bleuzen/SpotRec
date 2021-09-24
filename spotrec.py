@@ -257,7 +257,8 @@ class Spotify:
             "artist": self.metadata_artist,
             "album": self.metadata_album,
             "track": self.metadata_trackNumber.lstrip("0"),
-            "title": self.metadata_title
+            "title": self.metadata_title,
+            "cover_url": self.metadata_cover_url,
         }
 
     def get_track(self):
