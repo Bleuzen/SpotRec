@@ -42,6 +42,7 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 _tmp_file = True
 _underscored_filenames = False
 _use_internal_track_counter = False
+_add_cover_art = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -128,6 +129,7 @@ def handle_command_line():
     global _tmp_file
     global _underscored_filenames
     global _use_internal_track_counter
+    global _add_cover_art
 
     parser = argparse.ArgumentParser(
         description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
@@ -150,6 +152,8 @@ def handle_command_line():
                         action="store_true", default=_underscored_filenames)
     parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's trackNumber with own counter. Useable for preserving a playlist file order",
                         action="store_true", default=_use_internal_track_counter)
+    parser.add_argument("-a", "--add-cover-art", help="Embed the cover art from Spotify into the file",
+                        action="store_true", default=_add_cover_art)
 
     args = parser.parse_args()
 
@@ -168,6 +172,8 @@ def handle_command_line():
     _underscored_filenames = args.underscored_filenames
 
     _use_internal_track_counter = args.internal_track_counter
+
+    _add_cover_art = args.add_cover_art
 
 
 def init_log():
@@ -458,7 +464,7 @@ class FFmpeg:
         else:
             self.filename = os.path.basename(file) + ".flac"
 
-        # save this to the object because metadata_params is not elsewhere used
+        # save this to self because metadata_params is discarded after this function
         self.cover_url = metadata_for_file.pop('cover_url')
         # build metadata param
         metadata_params = ''
@@ -512,17 +518,21 @@ class FFmpeg:
                     else:
                         log.warning(
                             f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
+                        self.process = None # clean up
+                        return  # the file doesn't exist so can't add cover
 
-                class AddCoverArtThread(Thread):
-                    def __init__(self, parent):
-                        Thread.__init__(self)
-                        self.parent = parent
+                global _add_cover_art
+                if _add_cover_art:
+                    class AddCoverArtThread(Thread):
+                        def __init__(self, parent):
+                            Thread.__init__(self)
+                            self.parent = parent
 
-                    def run(self):
-                        self.parent.add_cover_art()
+                        def run(self):
+                            self.parent.add_cover_art()
 
-                add_cover_art_thread = AddCoverArtThread(self)
-                add_cover_art_thread.start()
+                    add_cover_art_thread = AddCoverArtThread(self)
+                    add_cover_art_thread.start()
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
