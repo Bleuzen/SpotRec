@@ -39,7 +39,6 @@ _skip_intro = False
 _mute_pa_recording_sink = False
 _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
-_tmp_file = True
 _underscored_filenames = False
 _use_internal_track_counter = False
 _add_cover_art = False
@@ -59,6 +58,7 @@ is_script_paused = False
 is_first_playing = True
 pa_spotify_sink_input_id = -1
 internal_track_counter = 1
+is_shutting_down = False
 
 
 def main():
@@ -100,12 +100,11 @@ def main():
 def doExit():
     log.info(f"[{app_name}] Shutting down ...")
 
+    global is_shutting_down
+    is_shutting_down = True
+
     # Stop Spotify DBus listener
     _spotify.quit_glib_loop()
-
-    # Disable _tmp_file to not rename the last recording which is uncomplete at this state
-    global _tmp_file
-    _tmp_file = False
 
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
@@ -126,7 +125,6 @@ def handle_command_line():
     global _mute_pa_recording_sink
     global _output_directory
     global _filename_pattern
-    global _tmp_file
     global _underscored_filenames
     global _use_internal_track_counter
     global _add_cover_art
@@ -146,8 +144,6 @@ def handle_command_line():
                                                          "Default: \"" + _filename_pattern + "\"\n"
                                                          "May contain slashes to create sub directories\n"
                                                          "Example: \"{artist}/{album}/{trackNumber} {title}\"", default=_filename_pattern)
-    parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording",
-                        action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
     parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's trackNumber with own counter. Useable for preserving a playlist file order",
@@ -166,8 +162,6 @@ def handle_command_line():
     _filename_pattern = args.filename_pattern
 
     _output_directory = args.output_directory
-
-    _tmp_file = not args.no_tmp_file
 
     _underscored_filenames = args.underscored_filenames
 
@@ -264,7 +258,7 @@ class Spotify:
             "album": self.metadata_album,
             "track": self.metadata_trackNumber.lstrip("0"),
             "title": self.metadata_title,
-            "cover_url": self.metadata_cover_url,
+            "cover_url": self.metadata_artUrl,
         }
 
     def get_track(self):
@@ -426,7 +420,7 @@ class Spotify:
             dbus.String(u'xesam:trackNumber'))).zfill(2)
         # https://github.com/patrickziegler/SpotifyRecorder/blob/4c1cc0a5449d0ca8bfb409ef98f4c7a21c73fe0f/spotify_recorder/track.py#L88
         # https://community.spotify.com/t5/Desktop-Linux/MPRIS-cover-art-url-file-not-found/m-p/4929877/highlight/true#M19504
-        self.metadata_cover_url = str(self.metadata.get(dbus.String(u'mpris:artUrl'))).replace(
+        self.metadata_artUrl = str(self.metadata.get(dbus.String(u'mpris:artUrl'))).replace(
             "https://open.spotify.com/image/",
             "https://i.scdn.co/image/"
         )
@@ -456,13 +450,10 @@ class FFmpeg:
 
         self.pulse_input = _pa_recording_sink_name + ".monitor"
 
-        if _tmp_file:
-            # Use a dot as filename prefix to hide the file until the recording was successful
-            self.tmp_file_prefix = "."
-            self.filename = self.tmp_file_prefix + \
-                os.path.basename(file) + ".flac"
-        else:
-            self.filename = os.path.basename(file) + ".flac"
+        # Use a dot as filename prefix to hide the file until the recording was successful
+        self.tmp_file_prefix = "."
+        self.filename = self.tmp_file_prefix + \
+            os.path.basename(file) + ".flac"
 
         # save this to self because metadata_params is discarded after this function
         self.cover_url = metadata_for_file.pop('cover_url')
@@ -505,7 +496,8 @@ class FFmpeg:
 
                 log.info(f"[FFmpeg] [{self.pid}] killed")
             else:
-                if _tmp_file:
+                global is_shutting_down
+                if not is_shutting_down:  # Do not post-process unfinished recordings
                     tmp_file = os.path.join(
                         self.out_dir, self.filename)
                     new_file = os.path.join(self.out_dir,
@@ -514,25 +506,22 @@ class FFmpeg:
                         shutil.move(tmp_file, new_file)
                         log.debug(
                             f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
-                        self.filename = new_file    # used by add_cover_art
+                        self.filename = new_file  # used by add_cover_art
+                        global _add_cover_art
+                        if _add_cover_art:
+                            class AddCoverArtThread(Thread):
+                                def __init__(self, parent):
+                                    Thread.__init__(self)
+                                    self.parent = parent
+
+                                def run(self):
+                                    self.parent.add_cover_art()
+
+                            add_cover_art_thread = AddCoverArtThread(self)
+                            add_cover_art_thread.start()
                     else:
                         log.warning(
                             f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
-                        self.process = None # clean up
-                        return  # the file doesn't exist so can't add cover
-
-                global _add_cover_art
-                if _add_cover_art:
-                    class AddCoverArtThread(Thread):
-                        def __init__(self, parent):
-                            Thread.__init__(self)
-                            self.parent = parent
-
-                        def run(self):
-                            self.parent.add_cover_art()
-
-                    add_cover_art_thread = AddCoverArtThread(self)
-                    add_cover_art_thread.start()
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
@@ -558,7 +547,8 @@ class FFmpeg:
             return
         # save the image locally -> could use a temp file here
         #   but might add option to keep image later
-        cover_file = os.path.join(self.out_dir, os.path.splitext(self.filename)[0])  # without extension
+        cover_file = os.path.join(self.out_dir, os.path.splitext(
+            self.filename)[0])  # without extension
         temp_file = cover_file + '_withArtwork.' + 'flac'
         if self.cover_url.startswith('file://'):
             log.debug(f'[FFmpeg] Cover art is local for {self.filename}')
@@ -570,7 +560,8 @@ class FFmpeg:
             log.debug(f'[FFmpeg] Cover art is on server for {self.filename}')
             answer = requests.get(self.cover_url)
             if not answer.ok:
-                log.debug(f'[FFmpeg] Cover art not found on server for {self.filename}')
+                log.debug(
+                    f'[FFmpeg] Cover art not found on server for {self.filename}')
                 return
             cover_file += "." + answer.headers["Content-Type"].rsplit("/")[-1]
             with open(cover_file, "wb") as fd:
@@ -579,18 +570,19 @@ class FFmpeg:
         log.debug(f'[FFmpeg] Saving cover art for {self.filename}')
         # no need for separate thread / logging here because quick
         returncode = Shell.run(_ffmpeg_executable + ' ' +
-                                '-y -i {} -i {} -map 0:a -map 1 '.format(
-                                    shlex.quote(os.path.join(self.out_dir, self.filename)), shlex.quote(cover_file)) +
-                                '-codec copy -id3v2_version 3 ' +
-                                '-metadata:s:v title="Album cover" ' +
-                                '-metadata:s:v comment="Cover (front)" ' +
-                                '-disposition:v attached_pic ' +
-                                shlex.quote(temp_file)).returncode
+                               '-y -i {} -i {} -map 0:a -map 1 '.format(
+                                   shlex.quote(os.path.join(self.out_dir, self.filename)), shlex.quote(cover_file)) +
+                               '-codec copy -id3v2_version 3 ' +
+                               '-metadata:s:v title="Album cover" ' +
+                               '-metadata:s:v comment="Cover (front)" ' +
+                               '-disposition:v attached_pic ' +
+                               shlex.quote(temp_file)).returncode
         if returncode != 0:
             log.warning(f"[FFmpeg] Failed adding artwork to {self.filename}")
             return
         # overwrite the actual file by the temp file
-        log.debug(f'[FFmpeg] Added cover art for {self.filename} in temp file, moving it')
+        log.debug(
+            f'[FFmpeg] Added cover art for {self.filename} in temp file, moving it')
         shutil.move(temp_file, self.filename)
         os.remove(cover_file)
 
