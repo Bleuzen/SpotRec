@@ -465,9 +465,16 @@ class FFmpeg:
         # FFmpeg Options:
         #  "-hide_banner": short the debug log a little
         #  "-y": overwrite existing files
-        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' +
-                                   self.pulse_input + metadata_params + ' -acodec flac ' +
-                                   shlex.quote(os.path.join(self.out_dir, self.filename)))
+        #  "-ac 2": always use 2 audio channels (stereo) (same as Spotify)
+        #  "-ar 44100": always use 44.1k samplerate (same as Spotify)
+        #  "-fragment_size 8820": set recording latency to 5 ms (0.05*44100*2*2) (very high values can cause ffmpeg to not stop fast enough, so post-processing fails)
+        #  "-acodec flac": use the flac lossless audio codec, so we don't lose quality while recording
+        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y '
+                                   '-f pulse ' +
+                                   '-ac 2 -ar 44100 -fragment_size 8820 ' +
+                                   '-i ' + self.pulse_input + metadata_params + ' '
+                                   '-acodec flac' +
+                                   ' ' + shlex.quote(os.path.join(self.out_dir, self.filename)))
 
         self.pid = str(self.process.pid)
 
