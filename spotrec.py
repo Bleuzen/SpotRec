@@ -268,10 +268,10 @@ class Spotify:
             filename_pattern = _filename_pattern
 
         ret = str(filename_pattern.format(
-            artist=self.metadata_artist,
-            album=self.metadata_album,
+            artist=self.metadata_artist.replace("/","_"),
+            album=self.metadata_album.replace("/","_"),
             trackNumber=self.metadata_trackNumber,
-            title=self.metadata_title
+            title=self.metadata_title.replace("/","_")
         ))
 
         if _underscored_filenames:
