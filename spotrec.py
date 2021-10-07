@@ -30,6 +30,9 @@ import requests
 # 'bash': shell commands
 # 'requests': get album art
 
+# TODO:
+# - set fixed latency on pipewire (currently only done by ffmpeg while it is recording ("fragment_size" parameter), but should ideally be set before recording)
+
 app_name = "SpotRec"
 app_version = "0.14.0"
 
@@ -46,9 +49,9 @@ _add_cover_art = False
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
 _pa_max_volume = "65536"
-_recording_time_before_song = 0.15
-_recording_time_after_song = 1.35
-_playback_time_before_seeking_to_beginning = 4.5
+_recording_time_before_song = 0.25
+_recording_time_after_song = 1.25
+_playback_time_before_seeking_to_beginning = 5.0
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
 _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
