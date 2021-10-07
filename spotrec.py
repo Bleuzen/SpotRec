@@ -34,7 +34,7 @@ import requests
 # - set fixed latency on pipewire (currently only done by ffmpeg while it is recording ("fragment_size" parameter), but should ideally be set before recording)
 
 app_name = "SpotRec"
-app_version = "0.14.0"
+app_version = "0.15.0"
 
 # Settings with Defaults
 _debug_logging = False
