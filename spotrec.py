@@ -19,6 +19,7 @@ import argparse
 import traceback
 import logging
 import shlex
+import requests
 
 # Deps:
 # 'python'
@@ -27,9 +28,13 @@ import shlex
 # 'gawk': awk in command to get sink input id of spotify
 # 'pulseaudio': sink control stuff
 # 'bash': shell commands
+# 'requests': get album art
+
+# TODO:
+# - set fixed latency on pipewire (currently only done by ffmpeg while it is recording ("fragment_size" parameter), but should ideally be set before recording)
 
 app_name = "SpotRec"
-app_version = "0.14.0"
+app_version = "0.15.0"
 
 # Settings with Defaults
 _debug_logging = False
@@ -37,17 +42,17 @@ _skip_intro = False
 _mute_pa_recording_sink = False
 _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
-_tmp_file = True
 _underscored_filenames = False
 _use_internal_track_counter = False
 _audio_codec = "flac"
+_add_cover_art = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
 _pa_max_volume = "65536"
-_recording_time_before_song = 0.15
-_recording_time_after_song = 1.35
-_playback_time_before_seeking_to_beginning = 4.5
+_recording_time_before_song = 0.25
+_recording_time_after_song = 1.25
+_playback_time_before_seeking_to_beginning = 5.0
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
 _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
@@ -57,6 +62,7 @@ is_script_paused = False
 is_first_playing = True
 pa_spotify_sink_input_id = -1
 internal_track_counter = 1
+is_shutting_down = False
 
 
 def main():
@@ -98,12 +104,11 @@ def main():
 def doExit():
     log.info(f"[{app_name}] Shutting down ...")
 
+    global is_shutting_down
+    is_shutting_down = True
+
     # Stop Spotify DBus listener
     _spotify.quit_glib_loop()
-
-    # Disable _tmp_file to not rename the last recording which is uncomplete at this state
-    global _tmp_file
-    _tmp_file = False
 
     # Kill all FFmpeg subprocesses
     FFmpeg.killAll()
@@ -124,10 +129,10 @@ def handle_command_line():
     global _mute_pa_recording_sink
     global _output_directory
     global _filename_pattern
-    global _tmp_file
     global _underscored_filenames
     global _use_internal_track_counter
     global _audio_codec
+    global _add_cover_art
 
     parser = argparse.ArgumentParser(
         description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
@@ -140,19 +145,19 @@ def handle_command_line():
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
     parser.add_argument("-ac", "--audio-codec", help="Set the audio codec of the recorded files\n"
-                                                     "Available: flac, mp3"
+                                                     "Available: flac, mp3\n"
                                                      "Default: flac", default=_audio_codec)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"\n"
                                                          "May contain slashes to create sub directories\n"
                                                          "Example: \"{artist}/{album}/{trackNumber} {title}\"", default=_filename_pattern)
-    parser.add_argument("-t", "--no-tmp-file", help="Do not use a temporary hidden file during recording",
-                        action="store_true", default=not _tmp_file)
     parser.add_argument("-u", "--underscored-filenames", help="Force the file names to have underscores instead of whitespaces",
                         action="store_true", default=_underscored_filenames)
     parser.add_argument("-c", "--internal-track-counter", help="Replace Spotify's trackNumber with own counter. Useable for preserving a playlist file order",
                         action="store_true", default=_use_internal_track_counter)
+    parser.add_argument("-a", "--add-cover-art", help="Embed the cover art from Spotify into the file",
+                        action="store_true", default=_add_cover_art)
 
     args = parser.parse_args()
 
@@ -166,13 +171,14 @@ def handle_command_line():
 
     _output_directory = args.output_directory
 
-    _tmp_file = not args.no_tmp_file
-
     _underscored_filenames = args.underscored_filenames
 
     _use_internal_track_counter = args.internal_track_counter
 
     _audio_codec = args.audio_codec
+
+    _add_cover_art = args.add_cover_art
+
 
 def init_log():
     global log
@@ -261,7 +267,8 @@ class Spotify:
             "artist": self.metadata_artist,
             "album": self.metadata_album,
             "track": self.metadata_trackNumber.lstrip("0"),
-            "title": self.metadata_title
+            "title": self.metadata_title,
+            "cover_url": self.metadata_artUrl,
         }
 
     def get_track(self):
@@ -271,10 +278,10 @@ class Spotify:
             filename_pattern = _filename_pattern
 
         ret = str(filename_pattern.format(
-            artist=self.metadata_artist,
-            album=self.metadata_album,
+            artist=self.metadata_artist.replace("/","_"),
+            album=self.metadata_album.replace("/","_"),
             trackNumber=self.metadata_trackNumber,
-            title=self.metadata_title
+            title=self.metadata_title.replace("/","_")
         ))
 
         if _underscored_filenames:
@@ -421,6 +428,12 @@ class Spotify:
         self.metadata_title = self.metadata.get(dbus.String(u'xesam:title'))
         self.metadata_trackNumber = str(self.metadata.get(
             dbus.String(u'xesam:trackNumber'))).zfill(2)
+        # https://github.com/patrickziegler/SpotifyRecorder/blob/4c1cc0a5449d0ca8bfb409ef98f4c7a21c73fe0f/spotify_recorder/track.py#L88
+        # https://community.spotify.com/t5/Desktop-Linux/MPRIS-cover-art-url-file-not-found/m-p/4929877/highlight/true#M19504
+        self.metadata_artUrl = str(self.metadata.get(dbus.String(u'mpris:artUrl'))).replace(
+            "https://open.spotify.com/image/",
+            "https://i.scdn.co/image/"
+        )
 
         if _use_internal_track_counter:
             global internal_track_counter
@@ -455,6 +468,8 @@ class FFmpeg:
         else:
             self.filename = os.path.basename(file) + "." +_audio_codec
 
+        # save this to self because metadata_params is discarded after this function
+        self.cover_url = metadata_for_file.pop('cover_url')
         # build metadata param
         metadata_params = ''
         for key, value in metadata_for_file.items():
@@ -463,9 +478,16 @@ class FFmpeg:
         # FFmpeg Options:
         #  "-hide_banner": short the debug log a little
         #  "-y": overwrite existing files
-        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y -f pulse -ac 2 -ar 44100 -i ' +
-                                   self.pulse_input + metadata_params + ' -acodec ' + _audio_codec+ ' ' +
-                                   shlex.quote(os.path.join(self.out_dir, self.filename)))
+        #  "-ac 2": always use 2 audio channels (stereo) (same as Spotify)
+        #  "-ar 44100": always use 44.1k samplerate (same as Spotify)
+        #  "-fragment_size 8820": set recording latency to 50 ms (0.05*44100*2*2) (very high values can cause ffmpeg to not stop fast enough, so post-processing fails)
+        #  "-acodec": use flac or mp3 audio codec, specified as command line argument
+        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y '
+                                   '-f pulse ' +
+                                   '-ac 2 -ar 44100 -fragment_size 8820 ' +
+                                   '-i ' + self.pulse_input + metadata_params + ' '
+                                   ' -acodec ' + _audio_codec + 
+                                   ' ' + shlex.quote(os.path.join(self.out_dir, self.filename)))
 
         self.pid = str(self.process.pid)
 
@@ -494,7 +516,8 @@ class FFmpeg:
 
                 log.info(f"[FFmpeg] [{self.pid}] killed")
             else:
-                if _tmp_file:
+                global is_shutting_down
+                if not is_shutting_down:  # Do not post-process unfinished recordings
                     tmp_file = os.path.join(
                         self.out_dir, self.filename)
                     new_file = os.path.join(self.out_dir,
@@ -503,6 +526,19 @@ class FFmpeg:
                         shutil.move(tmp_file, new_file)
                         log.debug(
                             f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
+                        self.filename = new_file  # used by add_cover_art
+                        global _add_cover_art
+                        if _add_cover_art:
+                            class AddCoverArtThread(Thread):
+                                def __init__(self, parent):
+                                    Thread.__init__(self)
+                                    self.parent = parent
+
+                                def run(self):
+                                    self.parent.add_cover_art()
+
+                            add_cover_art_thread = AddCoverArtThread(self)
+                            add_cover_art_thread.start()
                     else:
                         log.warning(
                             f"[FFmpeg] [{self.pid}] Failed renaming {self.filename}")
@@ -522,6 +558,53 @@ class FFmpeg:
 
         kill_thread = KillThread(self)
         kill_thread.start()
+
+    # add cover art to temp _withArtwork file
+    # and then move it to replace the original file
+    def add_cover_art(self):
+        if self.cover_url is None:
+            log.debug(f'[FFmpeg] No cover art found for {self.filename}')
+            return
+        # save the image locally -> could use a temp file here
+        #   but might add option to keep image later
+        cover_file = os.path.join(self.out_dir, os.path.splitext(
+            self.filename)[0])  # without extension
+        temp_file = cover_file + '_withArtwork.' + 'flac'
+        if self.cover_url.startswith('file://'):
+            log.debug(f'[FFmpeg] Cover art is local for {self.filename}')
+            path = self.cover_url[len('file://'):]
+            _, ext = os.path.splitext(path)
+            cover_file += ext
+            shutil.copy2(path, cover_file)
+        else:
+            log.debug(f'[FFmpeg] Cover art is on server for {self.filename}')
+            answer = requests.get(self.cover_url)
+            if not answer.ok:
+                log.debug(
+                    f'[FFmpeg] Cover art not found on server for {self.filename}')
+                return
+            cover_file += "." + answer.headers["Content-Type"].rsplit("/")[-1]
+            with open(cover_file, "wb") as fd:
+                fd.write(answer.content)
+        # add it to a temporary file
+        log.debug(f'[FFmpeg] Saving cover art for {self.filename}')
+        # no need for separate thread / logging here because quick
+        returncode = Shell.run(_ffmpeg_executable + ' ' +
+                               '-y -i {} -i {} -map 0:a -map 1 '.format(
+                                   shlex.quote(os.path.join(self.out_dir, self.filename)), shlex.quote(cover_file)) +
+                               '-codec copy -id3v2_version 3 ' +
+                               '-metadata:s:v title="Album cover" ' +
+                               '-metadata:s:v comment="Cover (front)" ' +
+                               '-disposition:v attached_pic ' +
+                               shlex.quote(temp_file)).returncode
+        if returncode != 0:
+            log.warning(f"[FFmpeg] Failed adding artwork to {self.filename}")
+            return
+        # overwrite the actual file by the temp file
+        log.debug(
+            f'[FFmpeg] Added cover art for {self.filename} in temp file, moving it')
+        shutil.move(temp_file, self.filename)
+        os.remove(cover_file)
 
     @staticmethod
     def killAll():
