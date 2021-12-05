@@ -516,18 +516,18 @@ class FFmpeg:
                         shutil.move(tmp_file, new_file)
                         log.debug(
                             f"[FFmpeg] [{self.pid}] Successfully renamed {self.filename}")
-                        self.filename = new_file  # used by add_cover_art
                         global _add_cover_art
                         if _add_cover_art:
                             class AddCoverArtThread(Thread):
-                                def __init__(self, parent):
+                                def __init__(self, parent, fullfilepath):
                                     Thread.__init__(self)
                                     self.parent = parent
+                                    self.fullfilepath = fullfilepath
 
                                 def run(self):
-                                    self.parent.add_cover_art()
+                                    self.parent.add_cover_art(self.fullfilepath)
 
-                            add_cover_art_thread = AddCoverArtThread(self)
+                            add_cover_art_thread = AddCoverArtThread(self, new_file)
                             add_cover_art_thread.start()
                     else:
                         log.warning(
@@ -551,50 +551,50 @@ class FFmpeg:
 
     # add cover art to temp _withArtwork file
     # and then move it to replace the original file
-    def add_cover_art(self):
+    def add_cover_art(self, fullfilepath):
         if self.cover_url is None:
-            log.debug(f'[FFmpeg] No cover art found for {self.filename}')
+            log.debug(f'[FFmpeg] No cover art found for {fullfilepath}')
             return
         # save the image locally -> could use a temp file here
         #   but might add option to keep image later
-        cover_file = os.path.join(self.out_dir, os.path.splitext(
-            self.filename)[0])  # without extension
+        cover_file = fullfilepath.rsplit('.flac')[0]   # remove the extension
+        log.debug(f'Saving cover art to {cover_file} + ext')
         temp_file = cover_file + '_withArtwork.' + 'flac'
         if self.cover_url.startswith('file://'):
-            log.debug(f'[FFmpeg] Cover art is local for {self.filename}')
+            log.debug(f'[FFmpeg] Cover art is local for {fullfilepath}')
             path = self.cover_url[len('file://'):]
             _, ext = os.path.splitext(path)
             cover_file += ext
             shutil.copy2(path, cover_file)
         else:
-            log.debug(f'[FFmpeg] Cover art is on server for {self.filename}')
+            log.debug(f'[FFmpeg] Cover art is on server for {fullfilepath}')
             answer = requests.get(self.cover_url)
             if not answer.ok:
                 log.debug(
-                    f'[FFmpeg] Cover art not found on server for {self.filename}')
+                    f'[FFmpeg] Cover art not loaded from server for {fullfilepath}')
                 return
             cover_file += "." + answer.headers["Content-Type"].rsplit("/")[-1]
             with open(cover_file, "wb") as fd:
                 fd.write(answer.content)
         # add it to a temporary file
-        log.debug(f'[FFmpeg] Saving cover art for {self.filename}')
+        log.debug(f'[FFmpeg] Merging cover art into {fullfilepath}')
         # no need for separate thread / logging here because quick
         returncode = Shell.run(_ffmpeg_executable + ' ' +
                                '-y -i {} -i {} -map 0:a -map 1 '.format(
-                                   shlex.quote(os.path.join(self.out_dir, self.filename)), shlex.quote(cover_file)) +
+                                   shlex.quote(fullfilepath), shlex.quote(cover_file)) +
                                '-codec copy -id3v2_version 3 ' +
                                '-metadata:s:v title="Album cover" ' +
                                '-metadata:s:v comment="Cover (front)" ' +
                                '-disposition:v attached_pic ' +
                                shlex.quote(temp_file)).returncode
         if returncode != 0:
-            log.warning(f"[FFmpeg] Failed adding artwork to {self.filename}")
+            log.warning(f"[FFmpeg] Failed adding artwork to {fullfilepath}")
             return
         # overwrite the actual file by the temp file
         log.debug(
-            f'[FFmpeg] Added cover art for {self.filename} in temp file, moving it')
-        shutil.move(temp_file, self.filename)
-        os.remove(cover_file)
+            f'[FFmpeg] Added cover art for {fullfilepath} in temp file, moving it')
+        shutil.move(temp_file, fullfilepath)
+        os.remove(cover_file)   # now delete the cover art
 
     @staticmethod
     def killAll():
