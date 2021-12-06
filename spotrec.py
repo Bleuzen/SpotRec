@@ -557,8 +557,8 @@ class FFmpeg:
             return
         # save the image locally -> could use a temp file here
         #   but might add option to keep image later
-        cover_file = fullfilepath.rsplit('.flac')[0]   # remove the extension
-        log.debug(f'Saving cover art to {cover_file} + ext')
+        cover_file = fullfilepath.rsplit('.flac', 1)[0]   # remove the extension
+        log.debug(f'Saving cover art to {cover_file} + image_ext')
         temp_file = cover_file + '_withArtwork.' + 'flac'
         if self.cover_url.startswith('file://'):
             log.debug(f'[FFmpeg] Cover art is local for {fullfilepath}')
