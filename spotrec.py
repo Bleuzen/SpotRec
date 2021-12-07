@@ -34,7 +34,7 @@ import requests
 # - set fixed latency on pipewire (currently only done by ffmpeg while it is recording ("fragment_size" parameter), but should ideally be set before recording)
 
 app_name = "SpotRec"
-app_version = "0.15.0"
+app_version = "0.15.1"
 
 # Settings with Defaults
 _debug_logging = False
@@ -271,10 +271,10 @@ class Spotify:
             filename_pattern = _filename_pattern
 
         ret = str(filename_pattern.format(
-            artist=self.metadata_artist.replace("/","_"),
-            album=self.metadata_album.replace("/","_"),
+            artist=self.metadata_artist.replace("/", "_"),
+            album=self.metadata_album.replace("/", "_"),
             trackNumber=self.metadata_trackNumber,
-            title=self.metadata_title.replace("/","_")
+            title=self.metadata_title.replace("/", "_")
         ))
 
         if _underscored_filenames:
@@ -525,9 +525,11 @@ class FFmpeg:
                                     self.fullfilepath = fullfilepath
 
                                 def run(self):
-                                    self.parent.add_cover_art(self.fullfilepath)
+                                    self.parent.add_cover_art(
+                                        self.fullfilepath)
 
-                            add_cover_art_thread = AddCoverArtThread(self, new_file)
+                            add_cover_art_thread = AddCoverArtThread(
+                                self, new_file)
                             add_cover_art_thread.start()
                     else:
                         log.warning(
@@ -557,7 +559,8 @@ class FFmpeg:
             return
         # save the image locally -> could use a temp file here
         #   but might add option to keep image later
-        cover_file = fullfilepath.rsplit('.flac', 1)[0]   # remove the extension
+        cover_file = fullfilepath.rsplit(
+            '.flac', 1)[0]  # remove the extension
         log.debug(f'Saving cover art to {cover_file} + image_ext')
         temp_file = cover_file + '_withArtwork.' + 'flac'
         if self.cover_url.startswith('file://'):
