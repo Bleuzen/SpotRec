@@ -44,6 +44,7 @@ _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _underscored_filenames = False
 _use_internal_track_counter = False
+_audio_codec = "flac"
 _add_cover_art = False
 
 # Hard-coded settings
@@ -130,6 +131,7 @@ def handle_command_line():
     global _filename_pattern
     global _underscored_filenames
     global _use_internal_track_counter
+    global _audio_codec
     global _add_cover_art
 
     parser = argparse.ArgumentParser(
@@ -142,6 +144,9 @@ def handle_command_line():
                         action="store_true", default=_mute_pa_recording_sink)
     parser.add_argument("-o", "--output-directory", help="Where to save the recordings\n"
                                                          "Default: " + _output_directory, default=_output_directory)
+    parser.add_argument("-ac", "--audio-codec", help="Set the audio codec of the recorded files\n"
+                                                     "Available: flac, mp3\n"
+                                                     "Default: flac", default=_audio_codec)
     parser.add_argument("-p", "--filename-pattern", help="A pattern for the file names of the recordings\n"
                                                          "Available: {artist}, {album}, {trackNumber}, {title}\n"
                                                          "Default: \"" + _filename_pattern + "\"\n"
@@ -169,6 +174,8 @@ def handle_command_line():
     _underscored_filenames = args.underscored_filenames
 
     _use_internal_track_counter = args.internal_track_counter
+
+    _audio_codec = args.audio_codec
 
     _add_cover_art = args.add_cover_art
 
@@ -453,10 +460,13 @@ class FFmpeg:
 
         self.pulse_input = _pa_recording_sink_name + ".monitor"
 
-        # Use a dot as filename prefix to hide the file until the recording was successful
-        self.tmp_file_prefix = "."
-        self.filename = self.tmp_file_prefix + \
-            os.path.basename(file) + ".flac"
+        if _tmp_file:
+            # Use a dot as filename prefix to hide the file until the recording was successful
+            self.tmp_file_prefix = "."
+            self.filename = self.tmp_file_prefix + \
+                os.path.basename(file) + "." + _audio_codec
+        else:
+            self.filename = os.path.basename(file) + "." +_audio_codec
 
         # save this to self because metadata_params is discarded after this function
         self.cover_url = metadata_for_file.pop('cover_url')
@@ -471,12 +481,12 @@ class FFmpeg:
         #  "-ac 2": always use 2 audio channels (stereo) (same as Spotify)
         #  "-ar 44100": always use 44.1k samplerate (same as Spotify)
         #  "-fragment_size 8820": set recording latency to 50 ms (0.05*44100*2*2) (very high values can cause ffmpeg to not stop fast enough, so post-processing fails)
-        #  "-acodec flac": use the flac lossless audio codec, so we don't lose quality while recording
+        #  "-acodec": use flac or mp3 audio codec, specified as command line argument
         self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y '
                                    '-f pulse ' +
                                    '-ac 2 -ar 44100 -fragment_size 8820 ' +
                                    '-i ' + self.pulse_input + metadata_params + ' '
-                                   '-acodec flac' +
+                                   ' -acodec ' + _audio_codec + 
                                    ' ' + shlex.quote(os.path.join(self.out_dir, self.filename)))
 
         self.pid = str(self.process.pid)

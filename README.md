@@ -27,12 +27,21 @@ python3 spotrec.py
 
 ### Example
 
-First of all run spotify.
+First of all run spotify. To circumvent incompatibilities occuring on some distros, install it via snap:
+
+```bash
+snap install spotify
+``` 
 
 Then you can run the python script which will record the music:
 
 ```
 ./spotrec.py -o ./my_song_dir --skip-intro
+```
+By default spotrec will output `*.flac` files. If you want to change the file type to `*.mp3` use the `--audio-codec` flag:
+
+```bash
+./spotrec.py -o ./my_song_dir --skip-intro --audio-codec mp3
 ```
 
 Check the  pulseaudio configuration:
