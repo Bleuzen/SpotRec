@@ -271,10 +271,10 @@ class Spotify:
             filename_pattern = _filename_pattern
 
         ret = str(filename_pattern.format(
-            artist=self.metadata_artist.replace("/","_"),
-            album=self.metadata_album.replace("/","_"),
+            artist=self.metadata_artist.replace("/", "_"),
+            album=self.metadata_album.replace("/", "_"),
             trackNumber=self.metadata_trackNumber,
-            title=self.metadata_title.replace("/","_")
+            title=self.metadata_title.replace("/", "_")
         ))
 
         if _underscored_filenames:
@@ -456,7 +456,7 @@ class FFmpeg:
         # Use a dot as filename prefix to hide the file until the recording was successful
         self.tmp_file_prefix = "."
         self.filename = self.tmp_file_prefix + \
-            os.path.basename(file) + ".flac"
+            os.path.basename(file) + ".mp3"
 
         # save this to self because metadata_params is discarded after this function
         self.cover_url = metadata_for_file.pop('cover_url')
@@ -476,7 +476,7 @@ class FFmpeg:
                                    '-f pulse ' +
                                    '-ac 2 -ar 44100 -fragment_size 8820 ' +
                                    '-i ' + self.pulse_input + metadata_params + ' '
-                                   '-acodec flac' +
+                                   '-acodec mp3 -vn -b:a 192k' +
                                    ' ' + shlex.quote(os.path.join(self.out_dir, self.filename)))
 
         self.pid = str(self.process.pid)
