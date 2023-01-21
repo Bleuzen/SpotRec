@@ -2,6 +2,7 @@
 
 # License: https://raw.githubusercontent.com/Bleuzen/SpotRec/master/LICENSE
 
+from operator import truediv
 import dbus
 from dbus.exceptions import DBusException
 import dbus.mainloop.glib
@@ -20,13 +21,14 @@ import traceback
 import logging
 import shlex
 import requests
+import signal
 
 # Deps:
 # 'python'
 # 'python-dbus'
 # 'ffmpeg'
 # 'gawk': awk in command to get sink input id of spotify
-# 'pulseaudio': sink control stuff
+# 'pipewire': sink control stuff
 # 'bash': shell commands
 # 'requests': get album art
 
@@ -34,7 +36,7 @@ import requests
 # - set fixed latency on pipewire (currently only done by ffmpeg while it is recording ("fragment_size" parameter), but should ideally be set before recording)
 
 app_name = "SpotRec"
-app_version = "0.15.0"
+app_version = "0.15.5"
 
 # Settings with Defaults
 _debug_logging = False
@@ -44,14 +46,17 @@ _output_directory = f"{Path.home()}/{app_name}"
 _filename_pattern = "{trackNumber} - {artist} - {title}"
 _underscored_filenames = False
 _use_internal_track_counter = False
+_internal_track_counter_start = 1
 _add_cover_art = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
 _pa_max_volume = "65536"
 _recording_time_before_song = 0.25
-_recording_time_after_song = 1.25
-_playback_time_before_seeking_to_beginning = 5.0
+_recording_time_after_song = 1.5
+# 5 sec: it seems this is the value Spotify uses to distingish between "one track backward" and "restart at the beginning of a track"
+# 500ms: this seems to be the time the "Autoplay" feature in the settings uses, turn it off.
+_playback_time_before_rewind = 5.5
 _shell_executable = "/bin/bash"  # Default: "/bin/sh"
 _shell_encoding = "utf-8"
 _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
@@ -60,8 +65,28 @@ _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
 is_script_paused = False
 is_first_playing = True
 pa_spotify_sink_input_id = -1
-internal_track_counter = 1
+internal_track_counter = _internal_track_counter_start
 is_shutting_down = False
+
+
+def doExit(sig, frame):
+    log.info(f"[{app_name}] Shutting down ...")
+
+    global is_shutting_down
+    is_shutting_down = True
+
+    # Stop Spotify DBus listener
+    _spotify.quit_glib_loop()
+
+    # Kill all FFmpeg subprocesses
+    FFmpeg.killAll()
+
+    PulseAudio.pipewire_cleanup()
+
+    log.info(f"[{app_name}] Bye")
+
+    # Have to use os exit here, because otherwise GLib would print a strange error message
+    os._exit(0)
 
 
 def main():
@@ -82,6 +107,9 @@ def main():
 
     init_log()
 
+    signal.signal(signal.SIGINT, doExit)
+    print('Press Ctrl+C to cancel')
+
     # Create the output directory
     Path(_output_directory).mkdir(
         parents=True, exist_ok=True)
@@ -100,28 +128,6 @@ def main():
         time.sleep(1)
 
 
-def doExit():
-    log.info(f"[{app_name}] Shutting down ...")
-
-    global is_shutting_down
-    is_shutting_down = True
-
-    # Stop Spotify DBus listener
-    _spotify.quit_glib_loop()
-
-    # Kill all FFmpeg subprocesses
-    FFmpeg.killAll()
-
-    # Unload PulseAudio sink
-    PulseAudio.unload_sink()
-
-    log.info(f"[{app_name}] Bye")
-
-    # Have to use os exit here, because otherwise GLib would print a strange error message
-    os._exit(0)
-    # sys.exit(0)
-
-
 def handle_command_line():
     global _debug_logging
     global _skip_intro
@@ -131,6 +137,8 @@ def handle_command_line():
     global _underscored_filenames
     global _use_internal_track_counter
     global _add_cover_art
+    global _internal_track_counter_start
+    global _internal_track_counter
 
     parser = argparse.ArgumentParser(
         description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
@@ -153,6 +161,8 @@ def handle_command_line():
                         action="store_true", default=_use_internal_track_counter)
     parser.add_argument("-a", "--add-cover-art", help="Embed the cover art from Spotify into the file",
                         action="store_true", default=_add_cover_art)
+    parser.add_argument("-t", "--track-counter-value", help="Start the internal track counter with this value (default = 001)",
+                        action="store_true", default=_internal_track_counter_start)
 
     args = parser.parse_args()
 
@@ -170,7 +180,13 @@ def handle_command_line():
 
     _use_internal_track_counter = args.internal_track_counter
 
+    _internal_track_counter_start = args.track_counter_value
+
     _add_cover_art = args.add_cover_art
+
+    # if a start value is given set track counter to this
+    if _use_internal_track_counter:
+        _internal_track_counter = _internal_track_counter_start
 
 
 def init_log():
@@ -306,7 +322,7 @@ class Spotify:
                 self.parent.stop_old_recording(FFmpeg.instances.copy())
 
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
-                time.sleep(_playback_time_before_seeking_to_beginning)
+                time.sleep(_playback_time_before_rewind)
 
                 # Check if still the same song is still playing, return if not
                 if self.trackid_when_thread_started != self.parent.trackid:
@@ -342,7 +358,7 @@ class Spotify:
                 Path(self.out_dir).mkdir(
                     parents=True, exist_ok=True)
 
-                # Go to beginning of the song
+                # Go to beginning the song
                 is_script_paused = False
                 self.parent.send_dbus_cmd("Previous")
 
@@ -442,16 +458,11 @@ class Spotify:
                 PulseAudio.init_spotify_sink_input_id()
                 PulseAudio.set_sink_volumes_to_100()
 
-                PulseAudio.move_spotify_to_own_sink()
-
-
 class FFmpeg:
     instances = []
 
     def record(self, out_dir: str, file: str, metadata_for_file={}):
         self.out_dir = out_dir
-
-        self.pulse_input = _pa_recording_sink_name + ".monitor"
 
         # Use a dot as filename prefix to hide the file until the recording was successful
         self.tmp_file_prefix = "."
@@ -472,12 +483,11 @@ class FFmpeg:
         #  "-ar 44100": always use 44.1k samplerate (same as Spotify)
         #  "-fragment_size 8820": set recording latency to 50 ms (0.05*44100*2*2) (very high values can cause ffmpeg to not stop fast enough, so post-processing fails)
         #  "-acodec flac": use the flac lossless audio codec, so we don't lose quality while recording
-        self.process = Shell.Popen(_ffmpeg_executable + ' -hide_banner -y '
-                                   '-f pulse ' +
-                                   '-ac 2 -ar 44100 -fragment_size 8820 ' +
-                                   '-i ' + self.pulse_input + metadata_params + ' '
-                                   '-acodec mp3 -vn -b:a 192k' +
-                                   ' ' + shlex.quote(os.path.join(self.out_dir, self.filename)))
+        cmd = _ffmpeg_executable + ' -hide_banner -y -f pulse -i output.' + _pa_recording_sink_name + ' -ac 2 -ar 44100 -fragment_size 8820 ' + \
+            metadata_params + ' -acodec mp3 -vn -b:a 192k ' + \
+            shlex.quote(os.path.join(self.out_dir, self.filename))
+        #print(cmd)
+        self.process = Shell.Popen(cmd)
 
         self.pid = str(self.process.pid)
 
@@ -647,18 +657,15 @@ class PulseAudio:
         log.info(f"[{app_name}] Creating pulse sink")
 
         if _mute_pa_recording_sink:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-null-sink sink_name="' + _pa_recording_sink_name +
-                                                    '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2')
+            PulseAudio.sink_id = Shell.Popen('')
         else:
-            PulseAudio.sink_id = Shell.check_output('pactl load-module module-remap-sink sink_name="' + _pa_recording_sink_name +
-                                                    '" sink_properties=device.description="' + _pa_recording_sink_name + '" rate=44100 channels=2 remix=no')
-            # To use another master sink where to play:
-            # pactl load-module module-remap-sink sink_name=spotrec sink_properties=device.description="spotrec" master=MASTER_SINK_NAME channels=2 remix=no
+            PulseAudio.sink_id = Shell.Popen(
+                'pw-loopback -m "[ FL FR ]" --playback-props=media.class=Audio/Source -n ' + _pa_recording_sink_name)
 
     @staticmethod
     def unload_sink():
         log.info(f"[{app_name}] Unloading pulse sink")
-        Shell.run('pactl unload-module ' + PulseAudio.sink_id)
+        #Shell.run('pactl unload-module ' + PulseAudio.sink_id)
 
     @staticmethod
     def init_spotify_sink_input_id():
@@ -685,23 +692,6 @@ class PulseAudio:
         pa_spotify_sink_input_id = int(index)
 
     @staticmethod
-    def move_spotify_to_own_sink():
-        class MoveSpotifyToSinktThread(Thread):
-            def run(self):
-                if pa_spotify_sink_input_id > -1:
-                    exit_code = Shell.run("pactl move-sink-input " + str(
-                        pa_spotify_sink_input_id) + " " + _pa_recording_sink_name).returncode
-
-                    if exit_code == 0:
-                        log.info(f"[{app_name}] Moved Spotify to own sink")
-                    else:
-                        log.warning(
-                            f"[{app_name}] Failed to move Spotify to own sink")
-
-        move_spotify_to_sink_thread = MoveSpotifyToSinktThread()
-        move_spotify_to_sink_thread.start()
-
-    @staticmethod
     def set_sink_volumes_to_100():
         log.debug(f"[{app_name}] Set sink volumes to 100%")
 
@@ -712,6 +702,29 @@ class PulseAudio:
         # Set recording sink volume to 100%
         Shell.Popen("pactl set-sink-volume " +
                     _pa_recording_sink_name + " " + _pa_max_volume)
+
+    @staticmethod
+    def pipewire_cleanup():
+        output = Shell.check_output("pw-cli ls nodes")
+        idFound = False
+        lastIdLine = ""
+        pwId = 0
+        for line in output.split('\n'):
+            if "id " in line and not idFound:
+                idFound = True
+                lastIdLine = line
+                continue
+            if idFound:
+                if "media.class" or "media.role" in line:
+                    # end of an id-entry
+                    idFound = False
+                    continue
+
+                # right object found?
+                if "spotrec" in line:
+                    splitted = lastIdLine.split(",")
+                    pwId = splitted[0][3:]
+                    print(f"Found spotrec id {pwId}")
 
 
 if __name__ == "__main__":
