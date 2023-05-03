@@ -45,6 +45,7 @@ _filename_pattern = "{trackNumber} - {artist} - {title}"
 _underscored_filenames = False
 _use_internal_track_counter = False
 _add_cover_art = False
+_continuous_recording = False
 
 # Hard-coded settings
 _pa_recording_sink_name = "spotrec"
@@ -59,6 +60,8 @@ _ffmpeg_executable = "ffmpeg"  # Example: "/usr/bin/ffmpeg"
 # Variables that change during runtime
 is_script_paused = False
 is_first_playing = True
+is_recording = False
+is_downloading = False
 pa_spotify_sink_input_id = -1
 internal_track_counter = 1
 is_shutting_down = False
@@ -115,6 +118,15 @@ def doExit():
     # Unload PulseAudio sink
     PulseAudio.unload_sink()
 
+    # Wait 5 max 5 seconds for cover art download
+    global _add_cover_art
+    if _add_cover_art:
+        log.info(f"[{app_name}] Waiting for cover art download")
+        global is_downloading
+        while time.time() < time.time() + 5:
+            if not is_downloading: break
+            time.sleep(0.25)
+
     log.info(f"[{app_name}] Bye")
 
     # Have to use os exit here, because otherwise GLib would print a strange error message
@@ -131,6 +143,7 @@ def handle_command_line():
     global _underscored_filenames
     global _use_internal_track_counter
     global _add_cover_art
+    global _continuous_recording
 
     parser = argparse.ArgumentParser(
         description=app_name + " v" + app_version, formatter_class=argparse.RawTextHelpFormatter)
@@ -153,6 +166,8 @@ def handle_command_line():
                         action="store_true", default=_use_internal_track_counter)
     parser.add_argument("-a", "--add-cover-art", help="Embed the cover art from Spotify into the file",
                         action="store_true", default=_add_cover_art)
+    parser.add_argument("-C", "--continuous-recording", help="Do not split tracks into single file, record altogether (including ads - use premium)",
+                        action="store_true", default=_continuous_recording)
 
     args = parser.parse_args()
 
@@ -172,6 +187,7 @@ def handle_command_line():
 
     _add_cover_art = args.add_cover_art
 
+    _continuous_recording = args.continuous_recording
 
 def init_log():
     global log
@@ -296,14 +312,17 @@ class Spotify:
 
             def run(self):
                 global is_script_paused
+                global is_recording
                 global _output_directory
+                global _continuous_recording
 
                 # Save current trackid to check later if it is still the same song playing (to avoid a bug when user skipped a song)
                 self.trackid_when_thread_started = self.parent.trackid
 
                 # Stop the recording before
                 # Use copy() to not change the list during this method runs
-                self.parent.stop_old_recording(FFmpeg.instances.copy())
+                if not _continuous_recording:
+                    self.parent.stop_old_recording(FFmpeg.instances.copy())
 
                 # This is currently the only way to seek to the beginning (let it Play for some seconds, Pause and send Previous)
                 time.sleep(_playback_time_before_seeking_to_beginning)
@@ -319,15 +338,24 @@ class Spotify:
 
                     # Exit after playlist recorded
                     if not is_script_paused:
+                        # Stop the recording, self.parent.stop_old_recording(FFmpeg.instances.copy()) did not work?
+                        log.debug(f"[{app_name}] Clean FFmpeg.killAll before regular exit")
+                        if _continuous_recording:
+                            FFmpeg.killAll()
                         doExit()
 
                     return
-
+                
                 # Do not record ads
                 if self.parent.trackid.startswith("spotify:ad:"):
                     log.debug(f"[{app_name}] Skipping ad")
                     return
-
+                
+                # Continue recording, not stopped
+                if is_recording:
+                    log.info(f"[{app_name}] Continuous recording is enabled, still recording")
+                    return
+                
                 log.info(f"[{app_name}] Starting recording")
 
                 # Set is_script_paused to not trigger wrong Pause event in playbackstatus_changed()
@@ -349,7 +377,9 @@ class Spotify:
                 # Start FFmpeg recording
                 ff = FFmpeg()
                 ff.record(self.out_dir,
-                          self.parent.track, self.parent.get_metadata_for_ffmpeg())
+                        self.parent.track, self.parent.get_metadata_for_ffmpeg())
+                # Add recording bool for continuous recording
+                is_recording = True
 
                 # Give FFmpeg some time to start up before starting the song
                 time.sleep(_recording_time_before_song)
@@ -487,6 +517,7 @@ class FFmpeg:
 
     # The blocking version of this method waits until the process is dead
     def stop_blocking(self):
+        global is_recording
         # Remove from instances list (and terminate)
         if self in self.instances:
             self.instances.remove(self)
@@ -537,6 +568,7 @@ class FFmpeg:
 
             # Remove process from memory (and don't left a ffmpeg 'zombie' process)
             self.process = None
+        is_recording = False
 
     # Kill the process in the background
     def stop(self):
@@ -554,6 +586,9 @@ class FFmpeg:
     # add cover art to temp _withArtwork file
     # and then move it to replace the original file
     def add_cover_art(self, fullfilepath):
+        # This is to keep running until art works are downloaded in continuous recording mode
+        global is_downloading
+        is_downloading = True
         if self.cover_url is None:
             log.debug(f'[FFmpeg] No cover art found for {fullfilepath}')
             return
@@ -592,12 +627,14 @@ class FFmpeg:
                                shlex.quote(temp_file)).returncode
         if returncode != 0:
             log.warning(f"[FFmpeg] Failed adding artwork to {fullfilepath}")
+            is_downloading = False
             return
         # overwrite the actual file by the temp file
         log.debug(
             f'[FFmpeg] Added cover art for {fullfilepath} in temp file, moving it')
         shutil.move(temp_file, fullfilepath)
         os.remove(cover_file)   # now delete the cover art
+        is_downloading = False
 
     @staticmethod
     def killAll():
